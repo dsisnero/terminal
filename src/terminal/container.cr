@@ -111,7 +111,7 @@ module Terminal
   end
 
   # Type alias for all supported service types
-  alias ServiceType = String | Int32 | Float64 | Bool | TestImplementation | TestFoo | TestBar | TestBaz | TestS | TestA | TestB
+  alias ServiceType = String | Int32 | Float64 | Bool | TestImplementation | TestFoo | TestBar | TestBaz | TestS | TestA | TestB | TestConfig | TestComposite
 
   # Wrapper class to hold any service instance
   class ServiceInstance
@@ -125,10 +125,25 @@ module Terminal
     end
   end
 
+  # Wrapper to store constructor procs for dependency injection
+  class ConstructorWrapper
+    # Store the proc in a stable field
+    @factory : Proc(ServiceType)
+
+    def initialize(@factory : Proc(ServiceType))
+    end
+
+    # Call factory with the container
+    def call(container : Container) : ServiceType
+      @factory.call
+    end
+  end
+
   # Main container implementation
   class ServiceContainer < Container
     @registrations : Hash(String, ServiceRegistration)
     @singleton_instances : Hash(String, ServiceInstance)
+    # Pluggable constructors registry: keyed by type name -> ConstructorWrapper
 
     # Helper method to register a type with its default implementation
     def register_type(type : Class, lifetime : ServiceLifetime = ServiceLifetime::Singleton)
@@ -136,10 +151,14 @@ module Terminal
     end
 
     # Helper method to register a factory
-    def register_factory(type : Class, &block : Container -> ServiceType)
-      key = build_key(type, nil)
-      reg = ServiceRegistration.new(type.name, nil, ServiceLifetime::Transient, nil, -> { block.call(self) })
+    def register_factory(type : Class, name : String? = nil, lifetime : ServiceLifetime = ServiceLifetime::Transient, &block : Container -> ServiceType)
+      key = build_key(type, name)
+      # Store factory both as a registration and in the pluggable constructors
+      reg = ServiceRegistration.new(type.name, nil, lifetime, name, -> { block.call(self) })
       @registrations[key] = reg
+      # Wrap block into a ConstructorWrapper so the ivar has a concrete type
+      # Wrap the provided block into a zero-arg proc that calls the block with the container
+      @constructors[key] = ConstructorWrapper.new(-> { block.call(self) })
     end
 
     # Helper method to register an instance
@@ -152,9 +171,10 @@ module Terminal
     @resolution_stack : Array(String)
 
     def initialize(@parent : Container? = nil)
-      @registrations = {} of String => ServiceRegistration
-      @singleton_instances = {} of String => ServiceInstance
-      @resolution_stack = [] of String
+  @registrations = {} of String => ServiceRegistration
+  @singleton_instances = {} of String => ServiceInstance
+  @resolution_stack = [] of String
+  @constructors = {} of String => ConstructorWrapper
 
       # Register basic types that the container can handle natively
       register_basic_types
@@ -167,7 +187,18 @@ module Terminal
       impl_type = implementation_type || service_type
       key = build_key(service_type, name)
 
-      @registrations[key] = ServiceRegistration.new(service_type.name, impl_type.name, lifetime, name)
+      # If there's an existing registration with a factory, preserve it
+      if existing = @registrations[key]?
+        @registrations[key] = ServiceRegistration.new(
+          service_type.name,
+          impl_type.name,
+          lifetime,
+          name,
+          existing.factory
+        )
+      else
+        @registrations[key] = ServiceRegistration.new(service_type.name, impl_type.name, lifetime, name)
+      end
     end
 
     # Resolve service instance
@@ -303,6 +334,11 @@ module Terminal
       end
 
       if impl_type_name = registration.implementation_type
+        # Consult pluggable constructors registered by type name first
+        if constructor = @constructors[impl_type_name]?
+          return constructor.call(self)
+        end
+
         # Handle basic types that we know about
         case impl_type_name
         when "String"
@@ -321,6 +357,10 @@ module Terminal
         end
       else
         # Try to resolve the service type directly
+        # Consult constructors for the service type name
+        if constructor = @constructors[registration.service_type]?
+          return constructor.call(self)
+        end
         resolve_complex_type(registration)
       end
     end

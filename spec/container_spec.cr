@@ -46,6 +46,36 @@ class TestB
   end
 end
 
+# Test class for constructor behavior
+class TestConfig
+  @value : String
+  @count : Int32
+
+  def initialize(@value = "default", @count = 0)
+  end
+
+  def value : String
+    @value
+  end
+
+  def count : Int32
+    @coun
+  end
+end
+
+# Test class for constructor composition
+class TestComposite
+  @config : TestConfig
+  @prefix : String
+
+  def initialize(@config : TestConfig, @prefix = "test:")
+  end
+
+  def value : String
+    "#{@prefix}#{@config.value}"
+  end
+end
+
 describe ServiceContainer do
 
   it "registers and resolves a simple type" do
@@ -94,9 +124,112 @@ describe ServiceContainer do
   end
 
   it "detects circular dependencies" do
-  container = ServiceContainer.new
-  container.register_singleton(TestA)
-  container.register_singleton(TestB)
-  expect_raises(CircularDependencyError) { container.resolve(TestA).as(TestA) }
+    container = ServiceContainer.new
+    container.register_singleton(TestA)
+    container.register_singleton(TestB)
+    expect_raises(CircularDependencyError) { container.resolve(TestA).as(TestA) }
+  end
+
+  it "allows constructor override and composition" do
+    container = ServiceContainer.new
+
+    # Register default factory
+    container.register_factory(TestConfig) { |_| TestConfig.new("first", 1) }
+    config1 = container.resolve(TestConfig).as(TestConfig)
+    config1.value.should eq("first")
+    config1.count.should eq(1)
+
+    # Override with new factory
+    container.register_factory(TestConfig) { |_| TestConfig.new("second", 2) }
+    config2 = container.resolve(TestConfig).as(TestConfig)
+    config2.value.should eq("second")
+    config2.count.should eq(2)
+
+    # Compose constructors
+    container.register_factory(TestComposite) { |c|
+      config = c.resolve(TestConfig).as(TestConfig)
+      TestComposite.new(config, "prefix:")
+    }
+    composite = container.resolve(TestComposite).as(TestComposite)
+    composite.value.should eq("prefix:second")
+  end
+
+  it "maintains constructor registration in scopes" do
+    container = ServiceContainer.new
+    container.register_factory(TestConfig) { |_| TestConfig.new("parent") }
+
+    # Create scope
+    scope = container.create_scope
+
+    # Scope inherits parent constructors
+    scope_config1 = scope.resolve(TestConfig).as(TestConfig)
+    scope_config1.value.should eq("parent")
+
+    # Scope can override constructors
+    scope.register_factory(TestConfig) { |_| TestConfig.new("scoped") }
+    scope_config2 = scope.resolve(TestConfig).as(TestConfig)
+    scope_config2.value.should eq("scoped")
+
+    # Parent container unaffected by scope override
+    parent_config = container.resolve(TestConfig).as(TestConfig)
+    parent_config.value.should eq("parent")
+  end
+
+  it "supports named registrations with factories" do
+    container = ServiceContainer.new
+
+    # Register factories with explicit lifetimes
+    container.register_factory(TestConfig, nil, ServiceLifetime::Singleton) { |_| TestConfig.new("default", 0) }
+    container.register_factory(TestConfig, "dev", ServiceLifetime::Transient) { |_| TestConfig.new("dev", 1) }
+    container.register_factory(TestConfig, "prod", ServiceLifetime::Singleton) { |_| TestConfig.new("prod", 2) }
+
+    # Test default unnamed registration
+    default1 = container.resolve(TestConfig).as(TestConfig)
+    default2 = container.resolve(TestConfig).as(TestConfig)
+    default1.value.should eq("default")
+    default1.should be(default2)  # Explicitly registered as singleton
+
+    # Test transient named registration
+    dev1 = container.resolve(TestConfig, "dev").as(TestConfig)
+    dev2 = container.resolve(TestConfig, "dev").as(TestConfig)
+    dev1.value.should eq("dev")
+    dev1.should_not be(dev2)  # Explicitly registered as transien
+
+    # Test singleton named registration
+    prod1 = container.resolve(TestConfig, "prod").as(TestConfig)
+    prod2 = container.resolve(TestConfig, "prod").as(TestConfig)
+    prod1.value.should eq("prod")
+    prod1.should be(prod2)  # Explicitly registered as singleton
+
+    # Can override just the lifetime without changing the factory
+    container.register_transient(TestConfig, name: "prod")  # Change to transien
+    prod3 = container.resolve(TestConfig, "prod").as(TestConfig)
+    prod4 = container.resolve(TestConfig, "prod").as(TestConfig)
+    prod3.value.should eq("prod")      # Same factory
+    prod3.should_not be(prod4)  # Now creates new instances
+  end
+
+  it "supports scoped factory inheritance and override" do
+    container = ServiceContainer.new
+
+    # Register factories in paren
+    container.register_factory(TestConfig) { |_| TestConfig.new("parent-default") }
+    container.register_factory(TestConfig, "dev") { |_| TestConfig.new("parent-dev") }
+
+    # Create scope and verify inheritance
+    scope = container.create_scope
+    scope_default = scope.resolve(TestConfig).as(TestConfig)
+    scope_default.value.should eq("parent-default")
+    scope_dev = scope.resolve(TestConfig, "dev").as(TestConfig)
+    scope_dev.value.should eq("parent-dev")
+
+    # Override factory in scope
+    scope.register_factory(TestConfig, "dev") { |_| TestConfig.new("scope-dev") }
+    scope_dev2 = scope.resolve(TestConfig, "dev").as(TestConfig)
+    scope_dev2.value.should eq("scope-dev")
+
+    # Parent resolution unaffected
+    parent_dev = container.resolve(TestConfig, "dev").as(TestConfig)
+    parent_dev.value.should eq("parent-dev")
   end
 end
