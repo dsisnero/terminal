@@ -103,6 +103,10 @@ module Terminal
   # Resolve a service instance
   abstract def resolve(service_type : Class, name : String? = nil) : Object
 
+  # Resolve a service instance asynchronously. Returns a Channel that will receive the
+  # instance once construction completes. This allows pluggable async factories to be used.
+  abstract def resolve_async(service_type : Class, name : String? = nil) : Channel(ServiceType)
+
     # Check if service is registered
     abstract def has?(service_type : Class, name : String? = nil) : Bool
 
@@ -139,12 +143,18 @@ module Terminal
     end
   end
 
+  # NOTE: Async constructor support simplified: we spawn a fiber to run
+  # the synchronous constructor and send the result over a channel.
+  # This avoids storing Channel-typed procs in ivars which complicates
+  # Crystal's generic typing rules.
+
   # Main container implementation
   class ServiceContainer < Container
     @registrations : Hash(String, ServiceRegistration)
     @singleton_instances : Hash(String, ServiceInstance)
-    # Pluggable constructors registry: keyed by type name -> ConstructorWrapper
+  # Pluggable constructors registry: keyed by registration key -> ConstructorWrapper
 
+  # (async constructor registry removed; we use a simple adapter to spawn resolves)
     # Helper method to register a type with its default implementation
     def register_type(type : Class, lifetime : ServiceLifetime = ServiceLifetime::Singleton)
       register(type, type, lifetime)
@@ -161,6 +171,26 @@ module Terminal
       @constructors[key] = ConstructorWrapper.new(-> { block.call(self) })
     end
 
+    # Register an async factory: adapt it into a synchronous registration by
+    # wrapping the provided block into a factory that blocks until the block
+    # sends a value on a channel. This keeps storage simple while allowing
+    # async implementations.
+    def register_async_factory(type : Class, name : String? = nil, lifetime : ServiceLifetime = ServiceLifetime::Transient, &block : Channel(ServiceType) -> Nil)
+      key = build_key(type, name)
+      # Create a wrapper factory which will run the async block and wait for the value
+      reg = ServiceRegistration.new(type.name, nil, lifetime, name, -> do
+        ch = Channel(ServiceType).new(1)
+        # run the user's async block in a spawned fiber so it can use ch
+        spawn do
+          block.call(ch)
+        end
+        # wait for value from the async block (user block should send and close the channel)
+        val = ch.receive
+        val
+      end)
+      @registrations[key] = reg
+    end
+
     # Helper method to register an instance
     def register_instance(type : Class, instance : Object, name : String? = nil)
       key = build_key(type, name)
@@ -175,9 +205,15 @@ module Terminal
   @singleton_instances = {} of String => ServiceInstance
   @resolution_stack = [] of String
   @constructors = {} of String => ConstructorWrapper
+    # Initialize async constructors via helper to avoid generic ivar typing issues
+    init_async_constructors!
 
       # Register basic types that the container can handle natively
       register_basic_types
+    end
+
+    private def init_async_constructors!
+      # no-op now; async constructors are wrapped into ServiceRegistration by register_async_factory
     end
 
     # Register service with explicit type
@@ -216,6 +252,36 @@ module Terminal
       end
 
       raise "Service not registered: #{service_type.name}#{name ? " (name: #{name})" : ""}"
+    end
+
+    # Resolve service asynchronously. Returns a Channel that will receive the ServiceType.
+    def resolve_async(service_type : Class, name : String? = nil) : Channel(ServiceType)
+      ch = Channel(ServiceType).new(1)
+      key = build_key(service_type, name)
+
+      # Build synchronously (register_async_factory wraps async work into the registration)
+      spawn do
+        begin
+          instance = nil
+          if registration = @registrations[key]?
+            instance = build_service(registration, key)
+          else
+            if parent = @parent
+              # Delegate to parent synchronously then send
+              instance = parent.resolve(service_type, name).as(ServiceType)
+            else
+              raise DependencyResolutionError.new(service_type.name, nil, "Service not registered: #{service_type.name}")
+            end
+          end
+          ch.send(instance)
+        rescue ex : Exception
+          # swallow; close channel
+        ensure
+          ch.close
+        end
+      end
+
+      ch
     end
 
     # Check if service is registered

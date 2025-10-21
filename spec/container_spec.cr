@@ -1,5 +1,6 @@
 require "spec"
 require "../src/terminal/container"
+require "../src/terminal/service_provider"
 
 include Terminal
 
@@ -59,7 +60,7 @@ class TestConfig
   end
 
   def count : Int32
-    @coun
+    @count
   end
 end
 
@@ -231,5 +232,24 @@ describe ServiceContainer do
     # Parent resolution unaffected
     parent_dev = container.resolve(TestConfig, "dev").as(TestConfig)
     parent_dev.value.should eq("parent-dev")
+  end
+
+  it "supports async factories and ServiceProvider facade" do
+    container = ServiceContainer.new
+    provider = ServiceProvider.new(container)
+
+    # Register async factory that waits and then sends instance
+    container.register_async_factory(TestConfig) do |ch|
+      spawn do
+        sleep 0.01
+        ch.send(TestConfig.new("async", 5))
+        ch.close
+      end
+    end
+
+    ch = provider.resolve_async(TestConfig)
+    val = ch.receive
+    val.as(TestConfig).value.should eq("async")
+    val.as(TestConfig).count.should eq(5)
   end
 end
