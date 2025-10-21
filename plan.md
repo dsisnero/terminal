@@ -30,7 +30,7 @@
 
 **📋 Next Priority Tasks:**
 - [ ] Implement DummyInputProvider
-- [ ] Implement Container for dependency injection
+- [ ] Implement Container for dependency injection (see [Container Plan](./plans/container_plan.md))
 - [ ] Create terminal.cr demo
 - [ ] Add InputProvider console version (raw mode)
 - [ ] Complete interactive demo with Tab focus switching
@@ -364,4 +364,3 @@ plan.3.md
 * Strict immutable messages and Cell structs for safety.
 * Each component mapped to a clear SOLID responsibility.
 * Tests leverage `IO::Memory` and `DummyInputProvider` for deterministic validation.
-

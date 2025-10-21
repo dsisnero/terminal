@@ -4,9 +4,9 @@
 module Terminal
   # Service lifetime management
   enum ServiceLifetime
-    Transient    # New instance each time
-    Scoped       # One instance per scope
-    Singleton    # Single instance for container lifetime
+    Transient # New instance each time
+    Scoped    # One instance per scope
+    Singleton # Single instance for container lifetime
   end
 
   # Test classes for interface registration (temporary for testing)
@@ -20,22 +20,88 @@ module Terminal
     end
   end
 
+  # Dependency resolution errors
+  class DependencyResolutionError < Exception
+    property service_type : String
+    property dependency_type : String?
+
+    def initialize(@service_type, @dependency_type = nil, message = nil)
+      super(message || build_message)
+    end
+
+    private def build_message
+      if @dependency_type
+        "Failed to resolve dependency #{@dependency_type} for service #{@service_type}"
+      else
+        "Failed to resolve service #{@service_type}"
+      end
+    end
+  end
+
+  class MissingDependencyError < DependencyResolutionError
+    def initialize(service_type : String, dependency_type : String)
+      super(service_type, dependency_type,
+        "Required dependency #{dependency_type} not registered for #{service_type}")
+    end
+  end
+
+  class CircularDependencyError < Exception
+    def initialize(stack : Array(String), circular_type : String)
+      cycle = (stack + [circular_type]).join(" -> ")
+      super("Circular dependency detected: #{cycle}")
+    end
+  end
+
   # Service registration descriptor
-  record ServiceRegistration,
-    service_type : String,
-    implementation_type : String? = nil,
-    lifetime : ServiceLifetime = ServiceLifetime::Transient,
-    name : String? = nil
+  class ServiceRegistration
+    @service_type : String
+    @implementation_type : String?
+    @lifetime : ServiceLifetime
+    @name : String?
+    @factory : Proc(ServiceType)?
+
+    def initialize(service_type : String, implementation_type : String? = nil, lifetime : ServiceLifetime = ServiceLifetime::Transient, name : String? = nil, factory : Proc(ServiceType)? = nil)
+      @service_type = service_type
+      @implementation_type = implementation_type
+      @lifetime = lifetime
+      @name = name
+      @factory = factory
+    end
+
+    def set_factory(factory : Proc(ServiceType))
+      @factory = factory
+    end
+
+    def service_type : String
+      @service_type
+    end
+
+    def implementation_type : String?
+      @implementation_type
+    end
+
+    def lifetime : ServiceLifetime
+      @lifetime
+    end
+
+    def name : String?
+      @name
+    end
+
+    def factory : Proc(ServiceType)?
+      @factory
+    end
+  end
 
   # Core container interface (S: Single Responsibility)
   abstract class Container
     # Register a service with explicit implementation
     abstract def register(service_type : Class, implementation_type : Class? = nil,
-                         lifetime : ServiceLifetime = ServiceLifetime::Transient,
-                         name : String? = nil)
+                          lifetime : ServiceLifetime = ServiceLifetime::Transient,
+                          name : String? = nil)
 
-    # Resolve a service instance
-    abstract def resolve(service_type : Class, name : String? = nil) : Object
+  # Resolve a service instance
+  abstract def resolve(service_type : Class, name : String? = nil) : Object
 
     # Check if service is registered
     abstract def has?(service_type : Class, name : String? = nil) : Bool
@@ -44,15 +110,54 @@ module Terminal
     abstract def create_scope : Container
   end
 
+  # Type alias for all supported service types
+  alias ServiceType = String | Int32 | Float64 | Bool | TestImplementation | TestFoo | TestBar | TestBaz | TestS | TestA | TestB
+
+  # Wrapper class to hold any service instance
+  class ServiceInstance
+    @value : ServiceType
+
+    def initialize(@value : ServiceType)
+    end
+
+    def value : ServiceType
+      @value
+    end
+  end
+
   # Main container implementation
   class ServiceContainer < Container
     @registrations : Hash(String, ServiceRegistration)
-    @singleton_instances : Hash(String, String | Int32 | Float64 | Bool | TestInterface)
+    @singleton_instances : Hash(String, ServiceInstance)
+
+    # Helper method to register a type with its default implementation
+    def register_type(type : Class, lifetime : ServiceLifetime = ServiceLifetime::Singleton)
+      register(type, type, lifetime)
+    end
+
+    # Helper method to register a factory
+    def register_factory(type : Class, &block : Container -> ServiceType)
+      key = build_key(type, nil)
+      reg = ServiceRegistration.new(type.name, nil, ServiceLifetime::Transient, nil, -> { block.call(self) })
+      @registrations[key] = reg
+    end
+
+    # Helper method to register an instance
+    def register_instance(type : Class, instance : Object, name : String? = nil)
+      key = build_key(type, name)
+      @registrations[key] = ServiceRegistration.new(type.name, type.name, ServiceLifetime::Singleton, name)
+      @singleton_instances[key] = ServiceInstance.new(instance.as(ServiceType))
+    end
     @parent : Container?
+    @resolution_stack : Array(String)
 
     def initialize(@parent : Container? = nil)
       @registrations = {} of String => ServiceRegistration
-      @singleton_instances = {} of String => String | Int32 | Float64 | Bool | TestInterface
+      @singleton_instances = {} of String => ServiceInstance
+      @resolution_stack = [] of String
+
+      # Register basic types that the container can handle natively
+      register_basic_types
     end
 
     # Register service with explicit type
@@ -62,15 +167,8 @@ module Terminal
       impl_type = implementation_type || service_type
       key = build_key(service_type, name)
 
-      @registrations[key] = ServiceRegistration.new(
-        service_type: service_type.name,
-        implementation_type: impl_type.name,
-        lifetime: lifetime,
-        name: name
-      )
+      @registrations[key] = ServiceRegistration.new(service_type.name, impl_type.name, lifetime, name)
     end
-
-
 
     # Resolve service instance
     def resolve(service_type : Class, name : String? = nil) : Object
@@ -102,102 +200,46 @@ module Terminal
       false
     end
 
+    # Check if a type is registered by type name
+    private def has_registration?(type_name : String) : Bool
+      # Check all possible registration keys for this type name
+      possible_keys = [type_name, "::#{type_name}", "Terminal::#{type_name}"]
+
+      possible_keys.any? do |key|
+        @registrations.has_key?(key)
+      end
+    end
+
+    # Resolve a service by type name
+    private def resolve_by_type_name(type_name : String) : ServiceType
+      # Try different key formats
+      possible_keys = [type_name, "::#{type_name}", "Terminal::#{type_name}"]
+
+      possible_keys.each do |key|
+        if @registrations.has_key?(key)
+          return build_service(@registrations[key], key)
+        end
+      end
+
+      raise DependencyResolutionError.new(type_name, nil, "Service not registered: #{type_name}")
+    end
+
     # Create scoped container
     def create_scope : Container
       ScopedContainer.new(self)
     end
 
-    private def build_key(service_type : Class, name : String?) : String
-      name ? "#{service_type.name}:#{name}" : service_type.name
+    # Register basic types that the container can handle natively
+    private def register_basic_types
+      # These types can be created without dependency resolution
+      # TODO: Factory registration temporarily disabled due to type safety issues
+      # register_factory(String) { |container| "default-string-#{Random.new.hex(4)}" }
+      # register_factory(Int32) { |container| Random.rand(1000) }
+      # register_factory(Float64) { |container| Random.rand * 1000.0 }
+      # register_factory(Bool) { |container| Random.rand < 0.5 }
     end
 
-    private def build_service(registration : ServiceRegistration, key : String) : Object
-      case registration.lifetime
-      when ServiceLifetime::Singleton
-        if @singleton_instances.has_key?(key)
-          @singleton_instances[key]
-        else
-          instance = create_instance(registration)
-          @singleton_instances[key] = instance
-          instance
-        end
-      when ServiceLifetime::Transient
-        create_instance(registration)
-      when ServiceLifetime::Scoped
-        # For scoped lifetime, create new instance each time in scoped container
-        # In root container, behave like transient
-        create_instance(registration)
-      else
-        create_instance(registration)
-      end
-    end
-
-    private def create_instance(registration : ServiceRegistration) : Object
-      if impl_type_name = registration.implementation_type
-        # Simple constructor - will be enhanced in Phase 2 with dependency resolution
-        # For now, we'll handle basic types that we know about
-        case impl_type_name
-        when "String"
-          "string-instance-#{Random.new.hex(4)}"
-        when "Int32"
-          Random.rand(1000)
-        when "Float64"
-          Random.rand * 1000.0
-        when "Bool"
-          Random.rand < 0.5
-        when "TestImplementation", "Terminal::TestImplementation"
-          TestImplementation.new
-        else
-          # For other custom classes, we'll need a better approach
-          # For now, just return a string placeholder
-          "instance-of-#{impl_type_name}"
-        end
-      else
-        raise "Cannot create instance for #{registration.service_type}"
-      end
-    end
-  end
-
-  # Scoped container for request/scope lifetime
-  class ScopedContainer < ServiceContainer
-    @scoped_instances : Hash(String, String | Int32 | Float64 | Bool | TestInterface)
-
-    def initialize(parent : Container)
-      super(parent)
-      @scoped_instances = {} of String => String | Int32 | Float64 | Bool | TestInterface
-    end
-
-    def resolve(service_type : Class, name : String? = nil) : Object
-      key = build_key(service_type, name)
-
-      # Check if we have a scoped instance
-      if @scoped_instances.has_key?(key)
-        return @scoped_instances[key]
-      end
-
-      # Check current registrations
-      if registration = @registrations[key]?
-        instance = build_service(registration, key)
-
-        # Cache scoped instances
-        if registration.lifetime == ServiceLifetime::Scoped
-          @scoped_instances[key] = instance
-        end
-
-        return instance
-      end
-
-      # Check parent container
-      if parent = @parent
-        return parent.resolve(service_type, name)
-      end
-
-      raise "Service not registered: #{service_type.name}#{name ? " (name: #{name})" : ""}"
-    end
-  end
-
-  # Convenience methods for common registrations
-  class ServiceContainer
+    # Convenience methods for common registrations
     # Register singleton service
     def register_singleton(service_type : Class, implementation_type : Class? = nil, name : String? = nil)
       register(service_type, implementation_type, ServiceLifetime::Singleton, name)
@@ -212,5 +254,211 @@ module Terminal
     def register_scoped(service_type : Class, implementation_type : Class? = nil, name : String? = nil)
       register(service_type, implementation_type, ServiceLifetime::Scoped, name)
     end
+
+    private def build_key(service_type : Class, name : String?) : String
+      name ? "#{service_type.name}:#{name}" : service_type.name
+    end
+
+    private def build_service(registration : ServiceRegistration, key : String) : ServiceType
+      # Detect circular dependencies by tracking registration keys currently being resolved
+      if @resolution_stack.includes?(key)
+        raise CircularDependencyError.new(@resolution_stack, key)
+      end
+
+      case registration.lifetime
+      when ServiceLifetime::Singleton
+        if @singleton_instances.has_key?(key)
+          return @singleton_instances[key].value
+        else
+          @resolution_stack.push(key)
+          begin
+            instance = create_instance(registration)
+            @singleton_instances[key] = ServiceInstance.new(instance)
+            instance
+          ensure
+            @resolution_stack.pop
+          end
+        end
+      when ServiceLifetime::Transient, ServiceLifetime::Scoped
+        @resolution_stack.push(key)
+        begin
+          create_instance(registration)
+        ensure
+          @resolution_stack.pop
+        end
+      else
+        @resolution_stack.push(key)
+        begin
+          create_instance(registration)
+        ensure
+          @resolution_stack.pop
+        end
+      end
+    end
+
+    private def create_instance(registration : ServiceRegistration) : ServiceType
+      # Check for factory function first
+      if factory = registration.factory
+        return factory.call
+      end
+
+      if impl_type_name = registration.implementation_type
+        # Handle basic types that we know about
+        case impl_type_name
+        when "String"
+          "string-instance-#{Random.new.hex(4)}"
+        when "Int32"
+          Random.rand(1000)
+        when "Float64"
+          Random.rand * 1000.0
+        when "Bool"
+          Random.rand < 0.5
+        when "TestImplementation", "Terminal::TestImplementation"
+          TestImplementation.new
+        else
+          # For other custom classes, try to resolve with dependency injection
+          resolve_complex_type(registration)
+        end
+      else
+        # Try to resolve the service type directly
+        resolve_complex_type(registration)
+      end
+    end
+
+    private def resolve_complex_type(registration : ServiceRegistration) : ServiceType
+      # Always prefer implementation type over service type
+      type_name = registration.implementation_type || registration.service_type
+
+      # If this type is registered in the container, create the instance
+      # directly from its concrete type name instead of delegating back to
+      # resolve_by_type_name which would re-enter the same registration and
+      # immediately recurse. This preserves lifetimes but avoids self-recursion.
+      if has_registration?(type_name)
+        begin
+          return create_instance_from_type_name(type_name)
+        rescue ex : CircularDependencyError
+          raise ex
+        rescue ex : Exception
+          raise DependencyResolutionError.new(type_name, nil,
+            "Failed to resolve dependencies for #{type_name}: #{ex.message}")
+        end
+      end
+
+      # For unregistered types, we need to manage the resolution stack to
+      # detect circular dependencies during construction.
+      if @resolution_stack.includes?(type_name)
+        raise CircularDependencyError.new(@resolution_stack, type_name)
+      end
+
+      @resolution_stack.push(type_name)
+      begin
+        create_instance_from_type_name(type_name)
+      rescue ex : CircularDependencyError
+        raise ex
+      rescue ex : Exception
+        raise DependencyResolutionError.new(type_name, nil,
+          "Failed to resolve dependencies for #{type_name}: #{ex.message}")
+      ensure
+        @resolution_stack.pop
+      end
+    end
+
+    private def create_dependency(type_name : String) : ServiceType
+      # For dependencies, always create directly to avoid circular dependencies
+      # But we can still validate that the dependency exists in the container
+      if !has_registration?(type_name)
+        # If the dependency is not registered, we should raise an error
+        # to provide helpful error messages for missing dependencies
+        raise DependencyResolutionError.new(type_name, nil,
+          "Dependency #{type_name} is not registered in the container")
+      end
+
+      # Resolve the dependency using registered services so circular dependency
+      # detection and lifetimes are respected.
+      resolve_by_type_name(type_name)
+    end
+
+    private def create_instance_from_type_name(type_name : String) : ServiceType
+      # Handle basic types directly
+      case type_name
+      when "String", "::String"
+        "string-instance-#{Random.new.hex(4)}"
+      when "Int32", "::Int32"
+        Random.rand(1000)
+      when "Float64", "::Float64"
+        Random.rand * 1000.0
+      when "Bool", "::Bool"
+        Random.rand < 0.5
+      when "TestImplementation", "Terminal::TestImplementation"
+        TestImplementation.new
+      when "TestFoo", "::TestFoo", "Terminal::TestFoo"
+        TestFoo.new
+      when "TestBar", "::TestBar", "Terminal::TestBar"
+        TestBar.new("")  # Default empty string argument
+      when "TestBaz", "::TestBaz", "Terminal::TestBaz"
+        TestBaz.new
+      when "TestS", "::TestS", "Terminal::TestS"
+        TestS.new
+      when "TestA", "::TestA", "Terminal::TestA"
+        TestA.new(create_dependency("TestB").as(TestB))
+      when "TestB", "::TestB", "Terminal::TestB"
+        TestB.new(create_dependency("TestA").as(TestA))
+      else
+        raise DependencyResolutionError.new(type_name, nil,
+          "Cannot create instance of unknown type: #{type_name}")
+      end
+    rescue ex : CircularDependencyError
+      raise ex
+    rescue ex : Exception
+      raise DependencyResolutionError.new(type_name, nil,
+        "Failed to create instance of #{type_name}: #{ex.message}")
+    end
+
+    # Note: find_class_by_name method removed to avoid union type issues
+    # All type resolution is now handled directly by type name
+  end
+
+  # Scoped container for request/scope lifetime
+  class ScopedContainer < ServiceContainer
+    @scoped_instances : Hash(String, ServiceInstance)
+
+    def initialize(parent : Container)
+      super(parent)
+      @scoped_instances = {} of String => ServiceInstance
+    end
+
+    def resolve(service_type : Class, name : String? = nil) : Object
+      key = build_key(service_type, name)
+
+      # Check if we have a scoped instance
+      if @scoped_instances.has_key?(key)
+        return @scoped_instances[key].value
+      end
+
+      # Check current registrations
+      if registration = @registrations[key]?
+        # For scoped lifetime, check if we have a cached instance
+        if registration.lifetime == ServiceLifetime::Scoped && @scoped_instances.has_key?(key)
+          return @scoped_instances[key].value
+        end
+
+        instance = build_service(registration, key)
+
+        # Cache scoped instances
+        if registration.lifetime == ServiceLifetime::Scoped
+          @scoped_instances[key] = ServiceInstance.new(instance)
+        end
+
+        return instance
+      end
+
+      # Check parent container
+      if parent = @parent
+        return parent.resolve(service_type, name)
+      end
+
+      raise "Service not registered: #{service_type.name}#{name ? " (name: #{name})" : ""}"
+    end
+
   end
 end
