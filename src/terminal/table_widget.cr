@@ -56,16 +56,16 @@ module Terminal
       @current_row = 0 if @current_row >= data.size
       self
     end
-    
+
     # Calculate minimum width needed for the table based on column widths
     def calculate_min_width : Int32
-      return 2 if @columns.empty?  # Just borders
-      
+      return 2 if @columns.empty? # Just borders
+
       # Sum column widths + separators + borders
       content_width = @columns.sum(&.width)
-      separators = [@columns.size - 1, 0].max  # spaces between columns
-      border_width = 2  # left and right borders
-      
+      separators = [@columns.size - 1, 0].max # spaces between columns
+      border_width = 2                        # left and right borders
+
       content_width + separators + border_width
     end
 
@@ -79,37 +79,37 @@ module Terminal
 
     # Calculate minimum height needed for table content
     def calculate_min_height : Int32
-      return 3 if @rows.empty?  # Header + borders minimum
-      
+      return 3 if @rows.empty? # Header + borders minimum
+
       # Header + borders + at least one data row
       header_lines = 1
-      border_lines = 2  # top and bottom
-      data_lines = [@rows.size, 1].min  # At least show one row if data exists
-      
+      border_lines = 2                 # top and bottom
+      data_lines = [@rows.size, 1].min # At least show one row if data exists
+
       header_lines + border_lines + data_lines
     end
 
     # Calculate maximum reasonable height for table
     def calculate_max_height : Int32
       return calculate_min_height if @rows.empty?
-      
+
       # Header + borders + all data rows (but cap at reasonable size)
       header_lines = 1
       border_lines = 2
       all_data_lines = @rows.size
-      
+
       # Cap at 25 rows to prevent huge tables
       {header_lines + border_lines + all_data_lines, 25}.min
     end
-    
+
     # Calculate minimum height needed for the table
     def calculate_min_height : Int32
-      return 3 if @rows.empty?  # Header + borders
-      
+      return 3 if @rows.empty? # Header + borders
+
       header_height = 1
       data_height = @rows.size
-      border_height = 2  # top and bottom borders
-      
+      border_height = 2 # top and bottom borders
+
       header_height + data_height + border_height
     end
 
@@ -127,15 +127,15 @@ module Terminal
     def handle(msg : Terminal::Msg::Any)
       # Try common navigation first
       return if handle_navigation(msg)
-      
+
       # Handle table-specific messages here if needed
     end
-    
+
     # Override navigation methods for table-specific behavior
     def handle_up_key
       @current_row = [@current_row - 1, 0].max if @rows.size > 0
     end
-    
+
     def handle_down_key
       @current_row = [@current_row + 1, [@rows.size - 1, 0].max].min if @rows.size > 0
     end
@@ -143,8 +143,8 @@ module Terminal
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
       # Use content-based width - only take what we need
       min_width = calculate_min_width
-      actual_width = min_width  # Always use minimum needed width
-      
+      actual_width = min_width # Always use minimum needed width
+
       grid = [] of Array(Terminal::Cell)
       # Borders: top line
       grid << border_line(actual_width)
@@ -157,7 +157,7 @@ module Terminal
       # Body rows (respect height - 2 border lines - 1 header)
       body_height = {0, height - 2 - 1}.max
       each_row_sorted.first(body_height).each_with_index do |row, idx|
-        cells = compose_row(row, inner_width, idx)  # Pass index for highlighting
+        cells = compose_row(row, inner_width, idx) # Pass index for highlighting
         grid << line_with_borders(cells)
       end
 
@@ -191,18 +191,18 @@ module Terminal
     private def compose_header(inner_width : Int32) : Array(Terminal::Cell)
       cells = [] of Terminal::Cell
       remaining = inner_width
-      
+
       @columns.each_with_index do |col, idx|
         break if remaining <= 0
-        
+
         # Add separator before column (except first)
         if idx > 0 && remaining > 0
           cells << Terminal::Cell.new(' ')
           remaining -= 1
         end
-        
+
         break if remaining <= 0
-        
+
         # Calculate actual width for this column
         actual_width = {col.width, remaining}.min
 
@@ -217,28 +217,28 @@ module Terminal
             label = truncate_with_ellipsis(label, {actual_width - 2, 0}.max) + " #{arrow}"
           end
         end
-        
+
         # Ensure exactly actual_width characters
         text = if label.size > actual_width
-          truncate_with_ellipsis(label, actual_width)
-        else
-          case col.align
-          when :right
-            label.rjust(actual_width)
-          when :center
-            label.center(actual_width)
-          else # :left
-            label.ljust(actual_width)
-          end
-        end
-        
+                 truncate_with_ellipsis(label, actual_width)
+               else
+                 case col.align
+                 when :right
+                   label.rjust(actual_width)
+                 when :center
+                   label.center(actual_width)
+                 else # :left
+                   label.ljust(actual_width)
+                 end
+               end
+
         # Add characters to cells
-        text.chars.each do |ch|
+        text.each_char do |ch|
           cells << Terminal::Cell.new(ch, col.fg)
         end
         remaining -= actual_width
       end
-      
+
       # pad remaining space
       while cells.size < inner_width
         cells << Terminal::Cell.new(' ')
@@ -249,49 +249,49 @@ module Terminal
     private def compose_row(row : Hash(String, String), inner_width : Int32, row_index : Int32 = -1) : Array(Terminal::Cell)
       cells = [] of Terminal::Cell
       remaining = inner_width
-      
+
       # Determine if this row should be highlighted
       is_current = @focused && (row_index == @current_row)
       bg_color = is_current ? "white" : "default"
       text_color = is_current ? "black" : "white"
-      
+
       @columns.each_with_index do |col, idx|
         break if remaining <= 0
-        
+
         # Add separator before column (except first)
         if idx > 0 && remaining > 0
           cells << Terminal::Cell.new(' ', text_color, bg_color)
           remaining -= 1
         end
-        
+
         break if remaining <= 0
-        
+
         # Calculate actual width for this column
         actual_width = {col.width, remaining}.min
 
         raw = row[col.key]? || ""
-        
+
         # Ensure exactly actual_width characters
         text = if raw.size > actual_width
-          truncate_with_ellipsis(raw, actual_width)
-        else
-          case col.align
-          when :right
-            raw.rjust(actual_width)
-          when :center
-            raw.center(actual_width)
-          else # :left
-            raw.ljust(actual_width)
-          end
-        end
-        
+                 truncate_with_ellipsis(raw, actual_width)
+               else
+                 case col.align
+                 when :right
+                   raw.rjust(actual_width)
+                 when :center
+                   raw.center(actual_width)
+                 else # :left
+                   raw.ljust(actual_width)
+                 end
+               end
+
         # Add characters to cells with highlighting colors
-        text.chars.each do |ch|
+        text.each_char do |ch|
           cells << Terminal::Cell.new(ch, text_color, bg_color)
         end
         remaining -= actual_width
       end
-      
+
       # pad remaining space
       while cells.size < inner_width
         cells << Terminal::Cell.new(' ', text_color, bg_color)
