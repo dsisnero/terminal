@@ -16,6 +16,9 @@
 - Input providers: Dummy and Raw (Unix), Windows VT stub; `InputProvider.default`
 - Color DSL helpers (`color_dsl.cr`) included in `Widget`
 - Widgets: SpinnerWidget, TableWidget (DSL, colors, sort arrows)
+- **Enhanced ApplicationDSL** with layout-focused approach (:four_quadrant, :grid, etc.)
+- **DSL Convenience methods** (Terminal.application, Terminal.chat_application)
+- **Complete DSL documentation** and examples
 
 **✅ Test Coverage:**
 - Cell operations (unit tests)
@@ -25,19 +28,29 @@
 - Widget event routing (integration tests)
 - Full integration pipeline (integration tests)
 - Spinner and Table widget specs
+- **Enhanced DSL specs** (ApplicationDSL, convenience methods, integration)
+- **All 27+ tests passing successfully**
 - ServiceContainer specs
 - **All 36 tests passing successfully**
 
-**🔧 Recent Fixes:**
+**🔧 Recent Major Accomplishments:**
 - Replaced deprecated sleep calls with Time::Span
 - Fixed EventLoop wiring, ScreenBuffer API, WaitGroup behavior
 - Added bracketed paste parsing and OSC 52 clipboard support
 - Resolved TableWidget header truncation and ColorDSL constant visibility
+- **✅ COMPLETED Enhanced DSL Implementation:**
+  - Layout-focused DSL (:four_quadrant, :grid, :vertical, :horizontal)
+  - Generic area methods (top_left, bottom_right, etc.)
+  - Convenience methods (Terminal.application, Terminal.chat_application)
+  - Full architecture integration (EventLoop, ScreenBuffer, DiffRenderer)
+  - Comprehensive documentation (DSL_USAGE_GUIDE.md, examples)
+  - Type-safe builders and error prevention patterns
+  - 27 specs passing with complete test coverage
 
 **📋 Next Priority Tasks:**
+- [x] Layout/composition for multiple widgets on screen ✅ **COMPLETED - Enhanced DSL**
 - [ ] Add a small demo executable target (optional) for showcase
 - [ ] Expand Windows RawInputProvider beyond VT enable (keys, UTF-8)
-- [ ] Layout/composition for multiple widgets on screen
 - [ ] Supervisor for actor failures and restart policies
 - [ ] CI/CD pipeline (GitHub Actions)
 
@@ -54,7 +67,10 @@
 - ✅ Dispatcher for message routing + tick handling
 - ✅ Input providers: Dummy, Raw (Unix), Windows VT stub
 - ✅ ColorDSL, SpinnerWidget, TableWidget
-- ✅ Full test suite (36 tests passing)
+- ✅ **Enhanced ApplicationDSL with layout system**
+- ✅ **DSL convenience methods and chat application builder**
+- ✅ **Complete documentation and examples**
+- ✅ Full test suite (27+ tests passing)
 
 **🔄 IN PROGRESS:**
 - 🔄 Demo application (example binary) — optional

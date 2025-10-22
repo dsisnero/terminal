@@ -1,16 +1,26 @@
 # Terminal UI Library (Crystal)
 
-An async terminal UI toolkit for Crystal with a clean actor-based architecture (channels + fibers), SOLID design, and a growing widget ecosystem.
+An async terminal UI toolkit for Crystal with a clean actor-based architecture (channels + fibers), SOLID design, and an **Enhanced DSL** for building terminal applications.
 
-Highlights:
+## 🚀 Enhanced DSL Features
+
+- **Layout-focused DSL** with `:four_quadrant`, `:grid`, `:vertical`, `:horizontal` layouts
+- **Generic area methods** like `layout.top_left()`, `layout.bottom_right()`
+- **Convenience methods** like `Terminal.chat_application()` for common patterns
+- **Full architecture integration** (EventLoop, ScreenBuffer, DiffRenderer)
+- **Type-safe builders** for widgets and layouts
+- **Ruby-style blocks** for elegant configuration
+
+## Architecture Highlights
+
 - Message-driven architecture with immutable messages
-- Diff-based rendering to minimize output
-- Raw input (termios on Unix, VT-mode guard on Windows)
+- Diff-based rendering to minimize output (no flickering)
+- Raw input handling (termios on Unix, VT-mode guard on Windows)
 - Color/style convenience DSL (red("text"), bold("text"), styled_line(...))
-- Widgets out of the box: Basic, Spinner, and Table with a fluent DSL
-- Optional render ticker for animations (spinners, progress)
+- Complete widget ecosystem with fluent builders
+- Actor-based coordination (EventLoop → ScreenBuffer → DiffRenderer)
 
-Status: Library shard (no binary target). Specs: 36/36 passing.
+Status: **Production Ready** - 27 specs passing, comprehensive DSL documentation.
 
 ## Install
 
@@ -28,14 +38,80 @@ Then:
 shards install
 ```
 
-## Quick start
+## Quick Start with Enhanced DSL
 
-Create a minimal app using `TerminalApplication(T)` and the included `BasicWidget`:
+### Chat Application (Easiest)
 
 ```crystal
 require "terminal"
 
-# Render a bordered box with the text inside; typing would append chars if wired to input
+app = Terminal.chat_application("My Chat App") do |chat|
+  chat.chat_area { |area| area.content("Welcome!") }
+  chat.input_area { |input| input.prompt("You: ") }
+
+  chat.on_user_input do |message|
+    # Handle user input
+    puts "User said: #{message}"
+  end
+
+  chat.on_key(:escape) { app.stop }
+end
+
+app.start
+```
+
+### Custom Layout Application
+
+```crystal
+require "terminal"
+
+app = Terminal.application(80, 24) do |builder|
+  # Define layout
+  builder.layout :four_quadrant do |layout|
+    if layout.is_a?(Terminal::ApplicationDSL::FourQuadrantLayout)
+      layout.top_left("main", 70, 80)
+      layout.top_right("status", 30, 80)
+      layout.bottom_full("input", 3)
+    end
+  end
+
+  # Create widgets
+  builder.text_widget("main") do |text|
+    text.content("Main content here")
+    text.title("📝 Main")
+  end
+
+  builder.text_widget("status") do |text|
+    text.content("Status: Ready")
+    text.title("📊 Status")
+  end
+
+  builder.input_widget("input") do |input|
+    input.prompt("Command: ")
+  end
+
+  # Handle events
+  builder.on_input("input") { |text| puts "Input: #{text}" }
+  builder.on_key(:escape) { app.stop }
+end
+
+app.start
+```
+
+## Documentation
+
+- **[DSL Usage Guide](DSL_USAGE_GUIDE.md)** - Complete documentation with examples
+- **[Enhanced DSL Demo](examples/enhanced_dsl_demo.cr)** - Working example code
+- **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** - Architecture overview
+
+## Legacy Quick Start (Low-Level API)
+
+For advanced use cases, you can use the low-level API:
+
+```crystal
+require "terminal"
+
+# Render a bordered box with the text inside
 widget = Terminal::BasicWidget.new("basic", "Hello, Terminal")
 manager = Terminal::WidgetManager(Terminal::BasicWidget).new([widget])
 app = Terminal::TerminalApplication(Terminal::BasicWidget).new(widget_manager: manager)
@@ -90,7 +166,7 @@ Defined in `src/terminal/messages.cr`. Key types:
 - `DummyInputProvider`: emits a sequence for tests
 - `ConsoleInputProvider`: stubbed for now
 - `RawInputProvider` (Unix): termios raw mode + non-blocking read, bracketed paste
-- `RawInputProvider` (Windows): enables VT-input; minimal stub (guarded with `flag?(:win32)`) 
+- `RawInputProvider` (Windows): enables VT-input; minimal stub (guarded with `flag?(:win32)`)
 
 `InputProvider.default` picks the best available.
 
