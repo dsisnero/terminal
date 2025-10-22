@@ -166,5 +166,22 @@ module Terminal
 
       result[0...height]
     end
+
+    # Implement required Measurable methods
+    def calculate_min_size : Terminal::Geometry::Size
+      # Input needs prompt + reasonable input space
+      prompt_width = Terminal::TextMeasurement.text_width(@prompt)
+      min_input_width = 10  # Minimum space for input
+      min_width = prompt_width + min_input_width
+      Terminal::Geometry::Size.new(min_width, 1) # Single line widget
+    end
+
+    def calculate_max_size : Terminal::Geometry::Size
+      # Input should not be too wide
+      prompt_width = Terminal::TextMeasurement.text_width(@prompt)
+      max_input_width = @max_length || 50  # Use max_length or reasonable default
+      max_width = prompt_width + max_input_width
+      Terminal::Geometry::Size.new([max_width, 80].min, 1) # Single line widget
+    end
   end
 end

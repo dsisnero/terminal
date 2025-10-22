@@ -56,5 +56,18 @@ module Terminal
       end
       lines
     end
+
+    # Implement required Measurable methods
+    def calculate_min_size : Terminal::Geometry::Size
+      # Spinner needs minimal space: spinner char + space + label
+      min_width = 2 + Terminal::TextMeasurement.text_width(@label)
+      Terminal::Geometry::Size.new(min_width, 1) # Single line widget
+    end
+
+    def calculate_max_size : Terminal::Geometry::Size
+      # Spinner should stay compact
+      max_width = 2 + Terminal::TextMeasurement.text_width(@label)
+      Terminal::Geometry::Size.new([max_width, 40].min, 1) # Single line widget
+    end
   end
 end

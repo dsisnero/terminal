@@ -197,5 +197,14 @@ module Terminal
       end
       line
     end
+
+    # Implement required Measurable methods
+    def calculate_min_size : Terminal::Geometry::Size
+      Terminal::Geometry::Size.new(calculate_min_width, calculate_min_height)
+    end
+
+    def calculate_max_size : Terminal::Geometry::Size  
+      Terminal::Geometry::Size.new(calculate_max_width, calculate_max_height)
+    end
   end
 end

@@ -41,6 +41,15 @@ module Terminal
       end
       lines
     end
+
+    # Implement required Measurable methods for test widget
+    def calculate_min_size : Terminal::Geometry::Size
+      Terminal::Geometry::Size.new([@content.size, 5].max, 1) # Content width or minimum 5, height 1
+    end
+
+    def calculate_max_size : Terminal::Geometry::Size
+      Terminal::Geometry::Size.new([@content.size, 50].min, 10) # Reasonable bounds
+    end
   end
 
   describe TerminalApplication do

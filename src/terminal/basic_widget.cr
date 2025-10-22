@@ -27,5 +27,18 @@ module Terminal
         create_full_grid(width, height, content_lines)
       end
     end
+
+    # Implement required Measurable methods
+    def calculate_min_size : Terminal::Geometry::Size
+      # Minimum size is content length + border (if applicable)
+      content_width = Terminal::TextMeasurement.text_width(@content)
+      Terminal::Geometry::Size.new([content_width + 2, 10].max, 3) # Min width for content + borders, min height 3
+    end
+
+    def calculate_max_size : Terminal::Geometry::Size
+      # Maximum size is reasonable bounds
+      content_width = Terminal::TextMeasurement.text_width(@content)
+      Terminal::Geometry::Size.new([content_width + 2, 80].min, 20) # Max reasonable size
+    end
   end
 end

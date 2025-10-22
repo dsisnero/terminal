@@ -46,6 +46,15 @@ module Terminal
     def call_create_full_grid(width, height, content_lines)
       create_full_grid(width, height, content_lines)
     end
+
+    # Implement required Measurable methods for test helper
+    def calculate_min_size : Terminal::Geometry::Size
+      Terminal::Geometry::Size.new(1, 1) # Minimal test widget
+    end
+
+    def calculate_max_size : Terminal::Geometry::Size
+      Terminal::Geometry::Size.new(100, 100) # Reasonable test bounds
+    end
   end
 
   describe Widget do
