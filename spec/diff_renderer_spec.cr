@@ -23,7 +23,7 @@ describe DiffRenderer do
     end
 
     # Give time for fiber to process messages
-    sleep 0.1
+    sleep(Time::Span.new(nanoseconds: 100_000_000))
     io.rewind
     output = io.gets_to_end
 

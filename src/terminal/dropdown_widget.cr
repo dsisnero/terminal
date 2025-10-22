@@ -130,38 +130,35 @@ module Terminal
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Use content-based width instead of full parameter
-      actual_width = calculate_optimal_width(width)
+      # Always use optimal dimensions - ignore oversized requests
+      optimal_width = calculate_min_width
+      optimal_height = calculate_min_height
 
       result = [] of Array(Terminal::Cell)
 
       # Prompt line with current selection indicator
-      result << render_prompt_line(actual_width)
+      result << render_prompt_line(optimal_width)
 
-      # If expanded, show options
+      # If expanded, show options (use optimal height to determine how many)
       if @expanded
         filtered = filtered_options
-        max_visible = height - 2 # Reserve space for prompt and border
+        max_visible = optimal_height - 1 # Reserve space for prompt line
 
         filtered.each_with_index do |option, idx|
           break if idx >= max_visible
-          option_line = render_option_line(option, idx == @selected_index, actual_width)
+          option_line = render_option_line(option, idx == @selected_index, optimal_width)
           result << option_line
         end
 
         # Show filter if active
         if !@filter.empty?
-          filter_line = render_filter_line(actual_width)
+          filter_line = render_filter_line(optimal_width)
           result << filter_line
         end
       end
 
-      # Pad remaining lines
-      while result.size < height
-        result << Array.new(actual_width) { Terminal::Cell.new(' ') }
-      end
-
-      result[0...height]
+      # Return only the content we need - don't pad to requested height
+      result
     end
 
     private def render_prompt_line(width : Int32) : Array(Terminal::Cell)

@@ -20,6 +20,76 @@ module Terminal
     end
   end
 
+  # Additional test classes for container testing
+  class TestFoo
+    def value : String
+      "foo"
+    end
+  end
+
+  class TestBar
+    @x : String
+
+    def initialize(@x : String)
+    end
+
+    def x : String
+      @x
+    end
+  end
+
+  class TestBaz; end
+
+  class TestS
+    @n : Float64
+
+    def initialize
+      @n = Random.new.rand
+    end
+
+    def n : Float64
+      @n
+    end
+  end
+
+  class TestA
+    def initialize(b : TestB)
+    end
+  end
+
+  class TestB
+    def initialize(a : TestA)
+    end
+  end
+
+  class TestConfig
+    @value : String
+    @count : Int32
+
+    def initialize(@value : String, @count : Int32 = 0)
+    end
+
+    def value : String
+      @value
+    end
+
+    def count : Int32
+      @count
+    end
+  end
+
+  class TestComposite
+    @config : TestConfig
+    @prefix : String
+
+    def initialize(@config : TestConfig, @prefix = "test:")
+    end
+
+    def value : String
+      "#{@prefix}#{@config.value}"
+    end
+  end
+
   # Dependency resolution errors
   class DependencyResolutionError < Exception
     property service_type : String
@@ -100,12 +170,12 @@ module Terminal
                           lifetime : ServiceLifetime = ServiceLifetime::Transient,
                           name : String? = nil)
 
-  # Resolve a service instance
-  abstract def resolve(service_type : Class, name : String? = nil) : Object
+    # Resolve a service instance
+    abstract def resolve(service_type : Class, name : String? = nil) : Object
 
-  # Resolve a service instance asynchronously. Returns a Channel that will receive the
-  # instance once construction completes. This allows pluggable async factories to be used.
-  abstract def resolve_async(service_type : Class, name : String? = nil) : Channel(ServiceType)
+    # Resolve a service instance asynchronously. Returns a Channel that will receive the
+    # instance once construction completes. This allows pluggable async factories to be used.
+    abstract def resolve_async(service_type : Class, name : String? = nil) : Channel(ServiceType)
 
     # Check if service is registered
     abstract def has?(service_type : Class, name : String? = nil) : Bool
@@ -114,8 +184,10 @@ module Terminal
     abstract def create_scope : Container
   end
 
-  # Type alias for all supported service types
-  alias ServiceType = String | Int32 | Float64 | Bool | TestImplementation | TestFoo | TestBar | TestBaz | TestS | TestA | TestB | TestConfig | TestComposite
+  # Type alias for supported service types in container
+  # Note: Test types are included for testing purposes
+  alias ServiceType = String | Int32 | Float64 | Bool | TestImplementation |
+                      TestFoo | TestBar | TestBaz | TestS | TestA | TestB | TestConfig | TestComposite
 
   # Wrapper class to hold any service instance
   class ServiceInstance
@@ -152,9 +224,10 @@ module Terminal
   class ServiceContainer < Container
     @registrations : Hash(String, ServiceRegistration)
     @singleton_instances : Hash(String, ServiceInstance)
-  # Pluggable constructors registry: keyed by registration key -> ConstructorWrapper
 
-  # (async constructor registry removed; we use a simple adapter to spawn resolves)
+    # Pluggable constructors registry: keyed by registration key -> ConstructorWrapper
+
+    # (async constructor registry removed; we use a simple adapter to spawn resolves)
     # Helper method to register a type with its default implementation
     def register_type(type : Class, lifetime : ServiceLifetime = ServiceLifetime::Singleton)
       register(type, type, lifetime)
@@ -197,16 +270,17 @@ module Terminal
       @registrations[key] = ServiceRegistration.new(type.name, type.name, ServiceLifetime::Singleton, name)
       @singleton_instances[key] = ServiceInstance.new(instance.as(ServiceType))
     end
+
     @parent : Container?
     @resolution_stack : Array(String)
 
     def initialize(@parent : Container? = nil)
-  @registrations = {} of String => ServiceRegistration
-  @singleton_instances = {} of String => ServiceInstance
-  @resolution_stack = [] of String
-  @constructors = {} of String => ConstructorWrapper
-    # Initialize async constructors via helper to avoid generic ivar typing issues
-    init_async_constructors!
+      @registrations = {} of String => ServiceRegistration
+      @singleton_instances = {} of String => ServiceInstance
+      @resolution_stack = [] of String
+      @constructors = {} of String => ConstructorWrapper
+      # Initialize async constructors via helper to avoid generic ivar typing issues
+      init_async_constructors!
 
       # Register basic types that the container can handle natively
       register_basic_types
@@ -365,7 +439,7 @@ module Terminal
       case registration.lifetime
       when ServiceLifetime::Singleton
         if @singleton_instances.has_key?(key)
-          return @singleton_instances[key].value
+          @singleton_instances[key].value
         else
           @resolution_stack.push(key)
           begin
@@ -500,15 +574,21 @@ module Terminal
       when "TestFoo", "::TestFoo", "Terminal::TestFoo"
         TestFoo.new
       when "TestBar", "::TestBar", "Terminal::TestBar"
-        TestBar.new("")  # Default empty string argument
+        TestBar.new("") # Default empty string argument
       when "TestBaz", "::TestBaz", "Terminal::TestBaz"
         TestBaz.new
       when "TestS", "::TestS", "Terminal::TestS"
         TestS.new
       when "TestA", "::TestA", "Terminal::TestA"
-        TestA.new(create_dependency("TestB").as(TestB))
+        TestA.new(create_dependency("Terminal::TestB").as(TestB))
       when "TestB", "::TestB", "Terminal::TestB"
-        TestB.new(create_dependency("TestA").as(TestA))
+        TestB.new(create_dependency("Terminal::TestA").as(TestA))
+      when "TestConfig", "::TestConfig", "Terminal::TestConfig"
+        TestConfig.new("default")
+      when "TestComposite", "::TestComposite", "Terminal::TestComposite"
+        # Requires TestConfig dependency
+        config = TestConfig.new("composite")
+        TestComposite.new(config)
       else
         raise DependencyResolutionError.new(type_name, nil,
           "Cannot create instance of unknown type: #{type_name}")
@@ -565,6 +645,5 @@ module Terminal
 
       raise "Service not registered: #{service_type.name}#{name ? " (name: #{name})" : ""}"
     end
-
   end
 end

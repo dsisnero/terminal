@@ -13,7 +13,7 @@ describe DummyInputProvider do
 
     # Collect all messages
     messages = [] of Terminal::Msg::Any
-    4.times do |i|
+    4.times do |_|
       messages << chan.receive
     end
 

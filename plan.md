@@ -5,14 +5,17 @@
 ## Current Status (Updated)
 
 **✅ Completed Components:**
-- Core messaging system (`messages.cr`)
+- Core messaging system (`messages.cr`) — includes PasteEvent and CopyToClipboard
 - Cell type implementation (`cell.cr`)
 - ScreenBuffer with diff computation
-- DiffRenderer with ANSI output
+- DiffRenderer with ANSI output, bracketed paste toggle, OSC 52 copy
 - CursorManager for cursor operations
 - WidgetManager with BasicWidget implementation
-- EventLoop for fiber management
-- Dispatcher for message routing
+- EventLoop for fiber management with optional ticker
+- Dispatcher for message routing and render ticks
+- Input providers: Dummy and Raw (Unix), Windows VT stub; `InputProvider.default`
+- Color DSL helpers (`color_dsl.cr`) included in `Widget`
+- Widgets: SpinnerWidget, TableWidget (DSL, colors, sort arrows)
 
 **✅ Test Coverage:**
 - Cell operations (unit tests)
@@ -21,24 +24,22 @@
 - CursorManager commands (unit tests)
 - Widget event routing (integration tests)
 - Full integration pipeline (integration tests)
-- **All 9 tests passing successfully**
+- Spinner and Table widget specs
+- ServiceContainer specs
+- **All 36 tests passing successfully**
 
 **🔧 Recent Fixes:**
-- Fixed Widget Event Routing test (content truncation issue)
-- Fixed DiffRenderer test (message processing timing issue)
-- Verified all tests passing successfully
+- Replaced deprecated sleep calls with Time::Span
+- Fixed EventLoop wiring, ScreenBuffer API, WaitGroup behavior
+- Added bracketed paste parsing and OSC 52 clipboard support
+- Resolved TableWidget header truncation and ColorDSL constant visibility
 
 **📋 Next Priority Tasks:**
-- [ ] Implement DummyInputProvider
-- [ ] Implement Container for dependency injection (see [Container Plan](./plans/container_plan.md))
-- [ ] Create terminal.cr demo
-- [ ] Add InputProvider console version (raw mode)
-- [ ] Complete interactive demo with Tab focus switching
-- [ ] Implement RawTerminal with termios FFI wrapper
-- [ ] Add Supervisor for actor failures
-- [ ] Upgrade Cell with styling (fg/bg/bold/underline)
-- [ ] Update ScreenBuffer to use styled Cell grid
-- [ ] Add CI/CD pipeline (GitHub Actions)
+- [ ] Add a small demo executable target (optional) for showcase
+- [ ] Expand Windows RawInputProvider beyond VT enable (keys, UTF-8)
+- [ ] Layout/composition for multiple widgets on screen
+- [ ] Supervisor for actor failures and restart policies
+- [ ] CI/CD pipeline (GitHub Actions)
 
 ## Implementation Status Summary
 
@@ -46,21 +47,20 @@
 - ✅ Core messaging system (`messages.cr`)
 - ✅ Cell type implementation (`cell.cr`)
 - ✅ ScreenBuffer with diff computation
-- ✅ DiffRenderer with ANSI output
+- ✅ DiffRenderer with ANSI output + OSC52 + paste toggle
 - ✅ CursorManager for cursor operations
 - ✅ WidgetManager with BasicWidget implementation
-- ✅ EventLoop for fiber management
-- ✅ Dispatcher for message routing
-- ✅ Full test suite (9 tests passing)
+- ✅ EventLoop for fiber management + ticker
+- ✅ Dispatcher for message routing + tick handling
+- ✅ Input providers: Dummy, Raw (Unix), Windows VT stub
+- ✅ ColorDSL, SpinnerWidget, TableWidget
+- ✅ Full test suite (36 tests passing)
 
 **🔄 IN PROGRESS:**
-- 🔄 Container implementation (dependency injection)
-- 🔄 Demo application
+- 🔄 Demo application (example binary) — optional
 
 **⏳ PENDING:**
-- ⏳ Input providers (DummyInputProvider, console InputProvider)
-- ⏳ Raw terminal mode (termios FFI)
-- ⏳ Styled cells and advanced rendering
+- ⏳ Windows input parsing
 - ⏳ Supervisor for fault tolerance
 - ⏳ CI/CD pipeline
 

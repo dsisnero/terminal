@@ -1,45 +1,20 @@
-# Terminal UI Library
+# Terminal UI Library (Crystal)
 
-A production-ready asynchronous terminal UI library built in **Crystal** using SOLID principles, Go-like concurrency (Channels + spawn), dependency injection, and comprehensive test coverage.
+An async terminal UI toolkit for Crystal with a clean actor-based architecture (channels + fibers), SOLID design, and a growing widget ecosystem.
 
-## 🚀 Features
+Highlights:
+- Message-driven architecture with immutable messages
+- Diff-based rendering to minimize output
+- Raw input (termios on Unix, VT-mode guard on Windows)
+- Color/style convenience DSL (red("text"), bold("text"), styled_line(...))
+- Widgets out of the box: Basic, Spinner, and Table with a fluent DSL
+- Optional render ticker for animations (spinners, progress)
 
-- **Actor-based Architecture**: Components communicate via immutable messages over channels
-- **Go-style Concurrency**: No shared mutable state, pure message passing
-- **Dependency Injection**: Clean separation of concerns with injectable dependencies
-- **Full Test Coverage**: Comprehensive unit and integration tests
-- **SOLID Principles**: Well-structured, maintainable codebase
-- **ANSI Terminal Support**: Full terminal control with cursor management and styling
+Status: Library shard (no binary target). Specs: 36/36 passing.
 
-## 📦 Architecture
+## Install
 
-### Core Components
-
-- **`InputProvider`**: Handles user input (console, dummy, file implementations)
-- **`Dispatcher`**: Routes messages between components
-- **`WidgetManager`**: Manages UI widgets and their lifecycle
-- **`ScreenBuffer`**: Maintains screen state and computes diffs
-- **`DiffRenderer`**: Renders screen changes as ANSI sequences
-- **`CursorManager`**: Controls cursor position and visibility
-- **`EventLoop`**: Manages fiber lifecycle and coordination
-- **`Container`**: Dependency injection container for wiring components
-
-### Message System
-
-All communication happens via immutable message structs defined in `messages.cr`:
-
-```crystal
-module Terminal::Msg
-  alias Any = Stop | InputEvent | Command | ResizeEvent |
-              ScreenUpdate | ScreenDiff | RenderRequest | RenderFrame |
-              CursorMove | CursorHide | CursorShow | CursorPosition |
-              WidgetEvent
-end
-```
-
-## 🛠 Installation
-
-Add this to your `shard.yml`:
+Add to your `shard.yml`:
 
 ```yaml
 dependencies:
@@ -47,166 +22,128 @@ dependencies:
     github: dsisnero/terminal
 ```
 
-Then run:
+Then:
 
 ```bash
 shards install
 ```
 
-## 📖 Usage
+## Quick start
 
-### Basic Example
+Create a minimal app using `TerminalApplication(T)` and the included `BasicWidget`:
 
 ```crystal
 require "terminal"
 
-# Create a terminal instance
-terminal = Terminal::Terminal.new
-
-# Start the terminal with a simple widget
-terminal.start do |widget_manager|
-  # Add your widgets here
-  widget_manager.add_widget(MyWidget.new("widget1"))
-end
+# Render a bordered box with the text inside; typing would append chars if wired to input
+widget = Terminal::BasicWidget.new("basic", "Hello, Terminal")
+manager = Terminal::WidgetManager(Terminal::BasicWidget).new([widget])
+app = Terminal::TerminalApplication(Terminal::BasicWidget).new(widget_manager: manager)
+app.start
+sleep 0.5
+app.stop
 ```
 
-### Creating Custom Widgets
+## Widgets
+
+### SpinnerWidget
 
 ```crystal
-class MyWidget < Terminal::Widget
-  def initialize(@id : String)
-  end
-
-  def render : Array(String)
-    ["Hello from #{@id}!"]
-  end
-
-  def handle(msg : Terminal::Msg::Any) : Terminal::Msg::Any?
-    case msg
-    when Terminal::Msg::InputEvent
-      # Handle input
-      nil
-    else
-      nil
-    end
-  end
-end
+spinner = Terminal::SpinnerWidget.new("spin", "Working...")
+# Animate via RenderRequest ticks; see EventLoop ticker below
 ```
 
-## 🧪 Testing
+### TableWidget (fluent DSL)
 
-The library includes comprehensive tests:
-
-```bash
-# Run all tests
-crystal spec
-
-# Run specific test files
-crystal spec spec/cell_spec.cr
-crystal spec spec/dummy_input_provider_spec.cr
+```crystal
+table = Terminal::TableWidget.new("t1")
+  .col("Name", :name, 12, :left, :cyan)
+  .col("Age",  :age,   5, :right)
+  .col("City", :city, 12, :left)
+  .sort_by(:age, asc: true)
+  .rows([
+    {"name" => "Alice", "age" => "30", "city" => "Paris"},
+    {"name" => "Bob",   "age" => "28", "city" => "Berlin"},
+  ])
 ```
 
-### Test Coverage
+## Color DSL
 
-- ✅ **Unit Tests**: Individual component testing
-- ✅ **Integration Tests**: Component interaction testing
-- ✅ **End-to-End Tests**: Full pipeline validation
+Available in all widgets via `include Terminal::Widget`:
 
-## 🏗 Project Structure
+- `red("Error")`, `green("OK")`, `blue("Info")`
+- `bold("text", fg: :magenta)`, `underline("text")`
+- `styled_line("Title", width, :center, fg: :yellow, bold: true)` → Array(Cell)
+
+## Messages
+
+Defined in `src/terminal/messages.cr`. Key types:
+
+- Input and commands: `InputEvent`, `Command`, `ResizeEvent`
+- Screen pipeline: `ScreenUpdate`, `ScreenDiff`, `RenderRequest`, `RenderFrame`
+- Cursor: `CursorHide`, `CursorShow`, `CursorMove`, `CursorPosition`
+- Widgets: `WidgetEvent`
+- Clipboard and paste: `PasteEvent` (bracketed paste), `CopyToClipboard` (OSC 52)
+
+## Input providers
+
+- `DummyInputProvider`: emits a sequence for tests
+- `ConsoleInputProvider`: stubbed for now
+- `RawInputProvider` (Unix): termios raw mode + non-blocking read, bracketed paste
+- `RawInputProvider` (Windows): enables VT-input; minimal stub (guarded with `flag?(:win32)`) 
+
+`InputProvider.default` picks the best available.
+
+## Event loop and ticker
+
+`EventLoop(T)` manages subsystem fibers and channels. It supports an optional ticker to emit `RenderRequest` messages periodically, which widgets can use for animations (e.g., `SpinnerWidget`).
+
+## Rendering and clipboard
+
+`DiffRenderer` can enable bracketed paste (optional) and handles `CopyToClipboard` via OSC 52 (supported in many terminals like iTerm2/Kitty/xterm with settings).
+
+## Project layout
 
 ```
 src/terminal/
-├── messages.cr          # Message definitions
-├── cell.cr              # Cell type for styled content
-├── input_provider.cr    # Input handling interface
-├── dummy_input_provider.cr # Test input provider
-├── dispatcher.cr        # Message routing
-├── widget_manager.cr    # Widget lifecycle management
-├── screen_buffer.cr     # Screen state management
-├── diff_renderer.cr     # ANSI output generation
-├── cursor_manager.cr    # Cursor control
-├── event_loop.cr        # Fiber management
-└── container.cr         # Dependency injection
+  prelude.cr            # roll-up requires for library
+  messages.cr           # message definitions (incl. PasteEvent, CopyToClipboard)
+  cell.cr               # styled cell type (to_ansi)
+  widget.cr             # Widget interface + helpers (includes ColorDSL)
+  color_dsl.cr          # red(), bold(), styled_line(), etc.
+  widget_manager.cr     # focus, broadcast, compose
+  dispatcher.cr         # routes input/commands and composes frames
+  screen_buffer.cr      # ScreenUpdate→ScreenDiff
+  diff_renderer.cr      # ANSI output, cursor control, OSC 52
+  cursor_manager.cr     # cursor show/hide/move
+  event_loop.cr         # fiber coordinator + optional ticker
+  input_provider.cr     # base + default()
+  input_raw_unix.cr     # raw input using termios (Unix)
+  input_raw_windows.cr  # VT input (Windows stub)
+  spinner_widget.cr     # animated spinner
+  table_widget.cr       # table with DSL, colors, sort arrows
 
 spec/
-├── cell_spec.cr
-├── screen_buffer_spec.cr
-├── diff_renderer_spec.cr
-├── cursor_manager_spec.cr
-├── dummy_input_provider_spec.cr
-├── widget_event_routing_spec.cr
-└── integration_spec.cr
+  ... 36 examples, 0 failures
 ```
 
-## 🔧 Development
-
-### Prerequisites
-
-- Crystal 1.0+
-- Git
-
-### Setup
+## Development
 
 ```bash
 git clone https://github.com/dsisnero/terminal.git
 cd terminal
 shards install
-```
-
-### Running Tests
-
-```bash
 crystal spec
-```
-
-### Code Formatting
-
-```bash
 crystal tool format
 ```
 
-## 📋 Development Status
+## Contributing
 
-### ✅ Completed
+1. Fork
+2. Create branch (`feat/x`)
+3. Commit and push
+4. Open a PR
 
-- Core messaging system
-- Cell type implementation
-- ScreenBuffer with diff computation
-- DiffRenderer with ANSI output
-- CursorManager for cursor operations
-- WidgetManager with BasicWidget implementation
-- EventLoop for fiber management
-- Dispatcher for message routing
-- DummyInputProvider for testing
-- Full test suite (13 tests passing)
+## License
 
-### 🔄 In Progress
-
-- Container implementation (dependency injection)
-- Demo application
-
-### ⏳ Planned
-
-- Console InputProvider with raw terminal mode
-- Styled cells with colors and formatting
-- Advanced widgets (TextBox, StatusBar, ListView, Button)
-- Supervisor for fault tolerance
-- CI/CD pipeline
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Inspired by modern terminal UI frameworks
-- Built with Crystal's excellent concurrency model
-- Following SOLID principles and clean architecture patterns
+MIT

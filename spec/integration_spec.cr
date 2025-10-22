@@ -28,7 +28,7 @@ describe "Terminal Integration" do
 
     # Stop fibers
     diff_chan.send(Terminal::Msg::Stop.new)
-    sleep 0.05
+    sleep(Time::Span.new(nanoseconds: 50_000_000))
 
     io.rewind
     output = io.gets_to_end

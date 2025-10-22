@@ -141,33 +141,32 @@ module Terminal
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Use content-based width - only take what we need
-      min_width = calculate_min_width
-      actual_width = min_width # Always use minimum needed width
+      # Use optimal dimensions - ignore oversized requests
+      optimal_width = calculate_min_width
+      optimal_height = calculate_min_height
+      
+      # Use the smaller of requested vs optimal for both dimensions
+      actual_width = {width, optimal_width}.min
+      actual_height = {height, optimal_height}.min
 
       grid = [] of Array(Terminal::Cell)
       # Borders: top line
-      grid << border_line(actual_width)
+      grid << border_line(optimal_width)
 
-      inner_width = actual_width - 2
+      inner_width = optimal_width - 2
       # Header line
       header_cells = compose_header(inner_width)
       grid << line_with_borders(header_cells)
 
-      # Body rows (respect height - 2 border lines - 1 header)
-      body_height = {0, height - 2 - 1}.max
-      each_row_sorted.first(body_height).each_with_index do |row, idx|
+      # Body rows - only show as many as fit in optimal height
+      max_data_rows = optimal_height - 3 # subtract header + top/bottom borders
+      each_row_sorted.first(max_data_rows).each_with_index do |row, idx|
         cells = compose_row(row, inner_width, idx) # Pass index for highlighting
         grid << line_with_borders(cells)
       end
 
-      # Fill remaining lines if needed
-      while grid.size < height - 1
-        grid << line_with_borders(Array.new(inner_width) { Terminal::Cell.new(' ') })
-      end
-
       # Bottom border
-      grid << border_line(actual_width)
+      grid << border_line(optimal_width)
 
       grid
     end

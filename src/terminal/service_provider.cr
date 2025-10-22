@@ -1,3 +1,5 @@
+require "../terminal/container"
+
 module Terminal
   # Lightweight facade around Container implementations that provides
   # a simpler API for common operations while still allowing access

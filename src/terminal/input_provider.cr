@@ -1,81 +1,75 @@
 # File: src/terminal/input_provider.cr
 # Purpose: Define InputProvider interface and concrete providers (Console and Dummy).
-# - ConsoleInputProvider reads bytes from STDIN (uses termios/RawTerminal externally provided)
-#   and emits Msg::InputEvent and Msg::Stop to a system channel.
-# - DummyInputProvider emits a deterministic sequence (useful for tests).
+# ConsoleInputProvider uses line-based reads here; for production replace with
+# a platform-specific raw-mode implementation (termios on Unix, Win32 Console on Windows).
 
 require "time"
 require "io"
 require "socket"
 require "../terminal/messages"
 
-module InputProvider
-  # Start must spawn a fiber and write Msg::InputEvent | Msg::Stop into out_chan
-  abstract def start(out_chan : Channel(Terminal::Msg::Any))
-end
+module Terminal
+  # Abstract InputProvider: implementations must spawn a fiber and write Msg::InputEvent | Msg::Stop into out_chan
+  abstract class InputProvider
+    abstract def start(out_chan : Channel(Msg::Any))
 
-# ConsoleInputProvider: synchronous blocking reads inside its own fiber.
-# NOTE: This implementation assumes raw mode is set externally (RawTerminal.with_raw_mode)
-# so we can simply call STDIN.getc in a fiber. For production use, integrate termios FFI.
-class ConsoleInputProvider
-  include InputProvider
-
-  def initialize
-    # placeholder for any config in future
+    # Returns a reasonable default provider for the platform
+    def self.default
+      {% if flag?(:win32) %}
+        RawInputProvider.new
+      {% else %}
+        RawInputProvider.new
+      {% end %}
+    rescue
+      # Fallback to console provider if raw is unavailable
+      ConsoleInputProvider.new
+    end
   end
 
-  def start(out_chan : Channel(Terminal::Msg::Any))
-    spawn do
-      begin
-        loop do
-          val = STDIN.getc
-          if val == nil
-            out_chan.send(Terminal::Msg::Stop.new("stdin closed"))
-            break
-          end
+  # ConsoleInputProvider: reads lines from STDIN and emits characters as InputEvent.
+  # This is a simple implementation for tests; replace with a raw-mode implementation for production.
+  class ConsoleInputProvider < InputProvider
+    def initialize
+    end
 
-          b = val.to_u8
-          # Control keys handling (simple): Ctrl-C (3) -> Stop
-          if b == 3_u8
-            out_chan.send(Terminal::Msg::Stop.new("ctrl-c"))
-            break
-          else
-            ch = b.to_char
-            out_chan.send(Terminal::Msg::InputEvent.new(ch, Time::Span.new(nanoseconds: 0)))
-          end
-        end
-      rescue ex : Exception
+    def start(out_chan : Channel(Msg::Any))
+      # Non-blocking placeholder implementation for tests.
+      # Replace with a proper raw-mode reader using termios/WinAPI for real applications.
+      spawn do
         begin
-          out_chan.send(Terminal::Msg::Stop.new("ConsoleInputProvider error: #{ex.message}"))
+          out_chan.send(Msg::Stop.new("console input not implemented"))
         rescue
-          # avoid raising from rescue
+        end
+      end
+    end
+  end
+
+  # DummyInputProvider: emits a predefined string at a given interval (ms)
+  class DummyInputProvider < InputProvider
+    def initialize(@seq : String = "", @interval_ms : Int32 = 100)
+    end
+
+    def start(out_chan : Channel(Msg::Any))
+      spawn do
+        begin
+          @seq.each_char do |ch|
+            out_chan.send(Msg::InputEvent.new(ch, Time::Span.zero))
+            sleep(Time::Span.new(nanoseconds: @interval_ms * 1_000_000))
+          end
+          # Give time for rendering before stopping
+          sleep(Time::Span.new(nanoseconds: @interval_ms * 2_000_000))
+          out_chan.send(Msg::Stop.new("dummy finished"))
+        rescue ex : Exception
+          begin
+            out_chan.send(Msg::Stop.new("DummyInputProvider error: #{ex.message}"))
+          rescue
+          end
         end
       end
     end
   end
 end
 
-# DummyInputProvider: emits a predefined string at a given interval (ms)
-class DummyInputProvider
-  include InputProvider
-
-  def initialize(@seq : String = "", @interval_ms : Int32 = 100)
-  end
-
-  def start(out_chan : Channel(Terminal::Msg::Any))
-    spawn do
-      begin
-        @seq.each_char do |ch|
-          sleep(Time::Span.new(seconds: 0, nanoseconds: @interval_ms * 1_000_000))
-          out_chan.send(Terminal::Msg::InputEvent.new(ch, Time::Span.new(nanoseconds: 0)))
-        end
-        out_chan.send(Terminal::Msg::Stop.new("dummy finished"))
-      rescue ex : Exception
-        begin
-          out_chan.send(Terminal::Msg::Stop.new("DummyInputProvider error: #{ex.message}"))
-        rescue
-        end
-      end
-    end
-  end
-end
+# Load platform-specific raw providers after base class is defined
+require "./input_raw_unix"
+require "./input_raw_windows"

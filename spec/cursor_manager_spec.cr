@@ -20,7 +20,7 @@ describe CursorManager do
     end
 
     # Wait briefly for fiber processing
-    sleep 0.05
+    sleep(Time::Span.new(nanoseconds: 50_000_000))
     io.rewind
     output = io.gets_to_end
 

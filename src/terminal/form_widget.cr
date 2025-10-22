@@ -296,47 +296,44 @@ module Terminal
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Use content-based width instead of full width parameter
-      actual_width = calculate_min_width
+      # Always use optimal dimensions - ignore oversized requests
+      optimal_width = calculate_min_width
+      optimal_height = calculate_min_height
 
       result = [] of Array(Terminal::Cell)
 
       # Title line
-      title_line = render_title_line(actual_width)
+      title_line = render_title_line(optimal_width)
       result << title_line
 
       # Separator
-      result << Array.new(actual_width) { Terminal::Cell.new('─', fg: "cyan") }
+      result << Array.new(optimal_width) { Terminal::Cell.new('─', fg: "cyan") }
 
       # Render each control
       @controls.each_with_index do |control, idx|
         focused = (idx == @focused_index)
         expanded = (@expanded_dropdown == control.id)
 
-        control_lines = render_control(control, focused, expanded, actual_width)
+        control_lines = render_control(control, focused, expanded, optimal_width)
         result.concat(control_lines)
 
         # Show error if present
         if error = control.error
-          error_line = render_error_line(error, actual_width)
+          error_line = render_error_line(error, optimal_width)
           result << error_line
         end
 
         # Spacer
-        result << Array.new(actual_width) { Terminal::Cell.new(' ') }
+        result << Array.new(optimal_width) { Terminal::Cell.new(' ') }
       end
 
       # Submit button
       submit_focused = (@focused_index == @controls.size)
-      submit_line = render_submit_button(submit_focused, actual_width)
+      submit_line = render_submit_button(submit_focused, optimal_width)
       result << submit_line
 
-      # Pad or truncate to height
-      while result.size < height
-        result << Array.new(actual_width) { Terminal::Cell.new(' ') }
-      end
-
-      result[0...height]
+      # Return only the content we need - don't pad to requested height
+      result
     end
 
     private def render_title_line(width : Int32) : Array(Terminal::Cell)

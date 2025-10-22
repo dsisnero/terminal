@@ -29,7 +29,7 @@ describe ScreenBuffer do
       msgs << msg
     end
 
-    diffs = msgs.select(&.is_a?(Terminal::Msg::ScreenDiff)).map(&.as(Terminal::Msg::ScreenDiff))
+    diffs = msgs.select(Terminal::Msg::ScreenDiff).map(&.as(Terminal::Msg::ScreenDiff))
     diffs.size.should be > 0
 
     diffs.last.changes.size.should eq 1

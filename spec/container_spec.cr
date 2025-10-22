@@ -4,124 +4,53 @@ require "../src/terminal/service_provider"
 
 include Terminal
 
-# Top-level test classes (Crystal requires types to be declared at top-level)
-# Top-level test classes (Crystal requires types to be declared at top-level)
-class TestFoo
-  def value : String
-    "foo"
-  end
-end
-
-class TestBar
-  @x : String
-
-  def initialize(@x : String)
-  end
-
-  def x : String
-    @x
-  end
-end
-
-class TestBaz; end
-
-class TestS
-  @n : Float64
-
-  def initialize
-    @n = Random.new.rand
-  end
-
-  def n : Float64
-    @n
-  end
-end
-
-class TestA
-  def initialize(b : TestB)
-  end
-end
-
-class TestB
-  def initialize(a : TestA)
-  end
-end
-
-# Test class for constructor behavior
-class TestConfig
-  @value : String
-  @count : Int32
-
-  def initialize(@value = "default", @count = 0)
-  end
-
-  def value : String
-    @value
-  end
-
-  def count : Int32
-    @count
-  end
-end
-
-# Test class for constructor composition
-class TestComposite
-  @config : TestConfig
-  @prefix : String
-
-  def initialize(@config : TestConfig, @prefix = "test:")
-  end
-
-  def value : String
-    "#{@prefix}#{@config.value}"
-  end
-end
+# Test classes are now defined in Terminal module (in container.cr)
+# Using Terminal::TestFoo, Terminal::TestBar, etc.
 
 describe ServiceContainer do
-
   it "registers and resolves a simple type" do
-  container = ServiceContainer.new
-  container.register_type(TestFoo)
-  inst = container.resolve(TestFoo).as(TestFoo)
-  inst.should be_a(TestFoo)
-  inst.value.should eq("foo")
+    container = ServiceContainer.new
+    container.register_type(Terminal::TestFoo)
+    inst = container.resolve(Terminal::TestFoo).as(Terminal::TestFoo)
+    inst.should be_a(Terminal::TestFoo)
+    inst.value.should eq("foo")
   end
 
   it "supports factories and instances" do
-  container = ServiceContainer.new
-  container.register_factory(TestBar) { |_| TestBar.new("f") }
-  b = container.resolve(TestBar).as(TestBar)
-  b.x.should eq("f")
+    container = ServiceContainer.new
+    container.register_factory(TestBar) { |_| TestBar.new("f") }
+    b = container.resolve(TestBar).as(TestBar)
+    b.x.should eq("f")
 
-  baz = TestBaz.new
-  container.register_instance(TestBaz, baz)
-  container.resolve(TestBaz).as(TestBaz).should be(baz)
+    baz = TestBaz.new
+    container.register_instance(TestBaz, baz)
+    container.resolve(TestBaz).as(TestBaz).should be(baz)
   end
 
   it "respects singleton and transient lifetimes" do
-  container = ServiceContainer.new
-  container.register_type(TestS)
-  s1 = container.resolve(TestS).as(TestS)
-  s2 = container.resolve(TestS).as(TestS)
-  s1.n.should eq(s2.n)
+    container = ServiceContainer.new
+    container.register_type(TestS)
+    s1 = container.resolve(TestS).as(TestS)
+    s2 = container.resolve(TestS).as(TestS)
+    s1.n.should eq(s2.n)
 
-  container.register_transient(String)
-  i1 = container.resolve(String).as(String)
-  i2 = container.resolve(String).as(String)
-  i1.should_not eq(i2)
+    container.register_transient(String)
+    i1 = container.resolve(String).as(String)
+    i2 = container.resolve(String).as(String)
+    i1.should_not eq(i2)
   end
 
   it "handles named services and scopes" do
-  container = ServiceContainer.new
-  container.register_transient(String, name: "a")
-  container.register_transient(String, name: "b")
-  a = container.resolve(String, "a").as(String)
-  b = container.resolve(String, "b").as(String)
+    container = ServiceContainer.new
+    container.register_transient(String, name: "a")
+    container.register_transient(String, name: "b")
+    a = container.resolve(String, "a").as(String)
+    b = container.resolve(String, "b").as(String)
     a.should_not eq(b)
 
-  container.register_singleton(String)
-  scope = container.create_scope
-  scope.resolve(String).as(String).should eq(container.resolve(String).as(String))
+    container.register_singleton(String)
+    scope = container.create_scope
+    scope.resolve(String).as(String).should eq(container.resolve(String).as(String))
   end
 
   it "detects circular dependencies" do
@@ -188,26 +117,26 @@ describe ServiceContainer do
     default1 = container.resolve(TestConfig).as(TestConfig)
     default2 = container.resolve(TestConfig).as(TestConfig)
     default1.value.should eq("default")
-    default1.should be(default2)  # Explicitly registered as singleton
+    default1.should be(default2) # Explicitly registered as singleton
 
     # Test transient named registration
     dev1 = container.resolve(TestConfig, "dev").as(TestConfig)
     dev2 = container.resolve(TestConfig, "dev").as(TestConfig)
     dev1.value.should eq("dev")
-    dev1.should_not be(dev2)  # Explicitly registered as transien
+    dev1.should_not be(dev2) # Explicitly registered as transien
 
     # Test singleton named registration
     prod1 = container.resolve(TestConfig, "prod").as(TestConfig)
     prod2 = container.resolve(TestConfig, "prod").as(TestConfig)
     prod1.value.should eq("prod")
-    prod1.should be(prod2)  # Explicitly registered as singleton
+    prod1.should be(prod2) # Explicitly registered as singleton
 
     # Can override just the lifetime without changing the factory
-    container.register_transient(TestConfig, name: "prod")  # Change to transien
+    container.register_transient(TestConfig, name: "prod") # Change to transien
     prod3 = container.resolve(TestConfig, "prod").as(TestConfig)
     prod4 = container.resolve(TestConfig, "prod").as(TestConfig)
-    prod3.value.should eq("prod")      # Same factory
-    prod3.should_not be(prod4)  # Now creates new instances
+    prod3.value.should eq("prod") # Same factory
+    prod3.should_not be(prod4)    # Now creates new instances
   end
 
   it "supports scoped factory inheritance and override" do
@@ -241,7 +170,7 @@ describe ServiceContainer do
     # Register async factory that waits and then sends instance
     container.register_async_factory(TestConfig) do |ch|
       spawn do
-        sleep 0.01
+        sleep(Time::Span.new(nanoseconds: 10_000_000))
         ch.send(TestConfig.new("async", 5))
         ch.close
       end

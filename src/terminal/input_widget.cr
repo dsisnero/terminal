@@ -122,18 +122,18 @@ module Terminal
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Use content-based width
-      actual_width = calculate_optimal_width(width)
+      # Always use optimal dimensions - ignore oversized requests
+      optimal_width = calculate_min_width
 
       result = [] of Array(Terminal::Cell)
 
       # Single line: prompt + input
-      line = Array.new(actual_width) { Terminal::Cell.new(' ') }
+      line = Array.new(optimal_width) { Terminal::Cell.new(' ') }
 
       # Render prompt
       x = 0
       @prompt.each_char do |ch|
-        break if x >= actual_width
+        break if x >= optimal_width
         line[x] = Terminal::Cell.new(ch, fg: "white", bg: @prompt_bg, bold: true)
         x += 1
       end
@@ -141,7 +141,7 @@ module Terminal
       # Render input value
       input_start = x
       @value.chars.each_with_index do |ch, i|
-        break if x >= actual_width
+        break if x >= optimal_width
         is_cursor = (input_start + i == input_start + @cursor_pos)
         line[x] = Terminal::Cell.new(
           ch,
@@ -153,7 +153,7 @@ module Terminal
       end
 
       # Render cursor if at end
-      if input_start + @cursor_pos == x && x < actual_width
+      if input_start + @cursor_pos == x && x < optimal_width
         line[x] = Terminal::Cell.new(' ', bg: @input_bg, underline: true)
       end
 
