@@ -2,11 +2,7 @@
 # Purpose: Common spec setup for terminal library tests
 
 require "spec"
-require "../src/terminal/prelude"
-require "../src/terminal/container"
-require "../src/terminal/terminal_application"
-require "../src/terminal/interactive_streaming_ui"
-require "../src/terminal/wait_group"
+require "../src/terminal"
 
 # Helper for rendering grids to strings (for testing)
 module SpecHelper
