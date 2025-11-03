@@ -1,43 +1,70 @@
 # File: src/terminal/input_raw_windows.cr
 # Raw terminal input provider for Windows using Win32 Console APIs.
-# Guarded to only compile on Windows. Currently a minimal stub that enables
-# VT input mode and immediately emits Stop. Full key parsing is TODO.
+# Compiles only on Windows; emits InputEvent messages similar to the Unix provider.
 
+require "time"
 require "../terminal/messages"
+require "./tty"
+require "./windows_key_map"
 
 module Terminal
   {% if flag?(:win32) %}
-    lib Win
-      alias HANDLE = Void*
-      alias DWORD = UInt32
-      alias BOOL = Int32
-
-      fun GetStdHandle(nStdHandle : DWORD) : HANDLE
-      fun GetConsoleMode(hConsoleHandle : HANDLE, lpMode : DWORD*) : BOOL
-      fun SetConsoleMode(hConsoleHandle : HANDLE, dwMode : DWORD) : BOOL
-
-      STD_INPUT_HANDLE              = 0xFFFFFFF6_u32
-      ENABLE_VIRTUAL_TERMINAL_INPUT =     0x0200_u32
-      ENABLE_PROCESSED_INPUT        =     0x0001_u32
+    lib WinInput
+      fun _kbhit : Int32
+      fun _getwch : UInt16
     end
 
     class RawInputProvider < InputProvider
+      POLL_SLEEP = 2.milliseconds
+
+      def initialize(@interval_ms : Int32 = 0)
+      end
+
       def start(out_chan : Channel(Msg::Any))
         spawn do
           begin
-            h = Win.GetStdHandle(Win::STD_INPUT_HANDLE)
-            mode = uninitialized Win::DWORD
-            Win.GetConsoleMode(h, pointerof(mode))
-            # enable VT input
-            Win.SetConsoleMode(h, mode | Win::ENABLE_VIRTUAL_TERMINAL_INPUT | Win::ENABLE_PROCESSED_INPUT)
-            # Minimal stub: Windows full input parsing not implemented yet
-            out_chan.send(Msg::Stop.new("windows raw input not yet implemented"))
+            Terminal::TTY.with_raw_mode(STDIN) do
+              read_loop(out_chan)
+            end
           rescue ex
             begin
               out_chan.send(Msg::Stop.new("windows raw input error: #{ex.message}"))
             rescue
             end
           end
+        end
+      end
+
+      private def read_loop(out_chan : Channel(Msg::Any))
+        loop do
+          ::sleep(POLL_SLEEP)
+          next if WinInput._kbhit == 0
+
+          code = WinInput._getwch
+          handle_code(out_chan, code) || break
+        end
+      end
+
+      private def handle_code(out_chan : Channel(Msg::Any), code : UInt16) : Bool
+        case code
+        when 0_u16, 0xE0_u16
+          handle_extended_prefix(out_chan)
+          true
+        when 3_u16 # Ctrl-C
+          out_chan.send(Msg::Stop.new("SIGINT"))
+          false
+        else
+          ch = code.to_i32.chr
+          out_chan.send(Msg::InputEvent.new(ch, Time::Span.zero))
+          true
+        end
+      end
+
+      private def handle_extended_prefix(out_chan : Channel(Msg::Any))
+        return if WinInput._kbhit == 0
+        extended = WinInput._getwch
+        if key = Terminal::WindowsKeyMap.lookup(extended)
+          out_chan.send(Msg::KeyPress.new(key))
         end
       end
     end

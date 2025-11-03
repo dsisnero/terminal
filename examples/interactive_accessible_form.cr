@@ -80,7 +80,6 @@ def read_key
       when 'C' then "right"
       when 'D' then "left"
       when 'Z' then "shift_tab"
-      else          nil
       end
     else
       "escape"
@@ -153,7 +152,7 @@ begin
 
   loop do
     # Render form - it will use optimal size internally
-    grid = form.render(70, 25)  # Widget will use optimal size internally
+    grid = form.render(70, 25) # Widget will use optimal size internally
     render_grid(grid, 70, 25)
 
     # Show current status
