@@ -2,7 +2,7 @@
 # Provides elegant DSL while using full terminal architecture capabilities
 
 require "./terminal_application"
-require "./widget_manager" 
+require "./widget_manager"
 require "./input_provider"
 require "./text_box_widget"
 require "./input_widget"
@@ -30,15 +30,15 @@ module Terminal
       def initialize(@width : Int32, @height : Int32)
       end
 
-      # Layout configuration with semantic methods  
-      def layout(style : Symbol)
+      # Layout configuration with semantic methods
+      def layout(style : Symbol, &)
         case style
         when :four_quadrant
           layout_builder = FourQuadrantLayout.new(@width, @height)
           yield layout_builder
           @layout_areas = layout_builder.areas
         when :grid
-          layout_builder = GridLayout.new(@width, @height) 
+          layout_builder = GridLayout.new(@width, @height)
           yield layout_builder
           @layout_areas = layout_builder.areas
         when :vertical
@@ -72,12 +72,12 @@ module Terminal
         builder = InputWidgetBuilder.new(id)
         block.call(builder)
         widget = builder.build
-        
+
         # Connect input handler if specified
         if handler = builder.submit_handler
           widget.on_submit(&handler)
         end
-        
+
         @widgets[id] = widget
       end
 
@@ -106,14 +106,14 @@ module Terminal
       def build : TerminalApplication(Widget)
         # Create composite widget that handles layout and composition
         composite_widget = LayoutCompositeWidget.new(@widgets, @layout_areas, @width, @height)
-        
+
         # Setup input handling
         setup_input_handling(composite_widget)
-        
+
         # Create widget manager - cast to Widget to satisfy type system
         widgets_array = [composite_widget.as(Widget)]
         widget_manager = WidgetManager(Widget).new(widgets_array)
-        
+
         # Create terminal application with full architecture
         app = TerminalApplication(Widget).new(
           widget_manager: widget_manager,
@@ -330,7 +330,7 @@ module Terminal
       def build : TextBoxWidget
         # Add title to content if specified
         final_content = @title.empty? ? @content : "#{@title}\n#{@content}"
-        
+
         TextBoxWidget.new(
           id: @id,
           content: final_content,
@@ -397,7 +397,7 @@ module Terminal
         widgets : Hash(String, Terminal::Widget),
         @layout_areas : Hash(String, NamedTuple(x: Int32, y: Int32, width: Int32, height: Int32)),
         @width : Int32,
-        @height : Int32
+        @height : Int32,
       )
         @widgets = widgets.transform_values(&.as(Terminal::Widget))
       end

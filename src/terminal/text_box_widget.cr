@@ -171,7 +171,7 @@ module Terminal
         content_lines << style("".ljust(inner_width), @fg_color, @bg_color, @bold)
       end
 
-      create_full_grid(width, height, content_lines)
+      build_bordered_cell_grid(width, height, @padding, content_lines)
     end
 
     private def wrap_content_lines(inner_width : Int32) : Array(String)
@@ -235,26 +235,6 @@ module Terminal
 
     private def create_empty_grid(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
       Array.new(height) { Array.new(width) { Terminal::Cell.new(' ') } }
-    end
-
-    private def draw_border(grid : Array(Array(Terminal::Cell)), width : Int32, height : Int32)
-      # Top and bottom borders
-      (0...width).each do |col|
-        grid[0][col] = Terminal::Cell.new('─')
-        grid[height - 1][col] = Terminal::Cell.new('─')
-      end
-
-      # Left and right borders
-      (0...height).each do |row|
-        grid[row][0] = Terminal::Cell.new('│')
-        grid[row][width - 1] = Terminal::Cell.new('│')
-      end
-
-      # Corners
-      grid[0][0] = Terminal::Cell.new('┌')
-      grid[0][width - 1] = Terminal::Cell.new('┐')
-      grid[height - 1][0] = Terminal::Cell.new('└')
-      grid[height - 1][width - 1] = Terminal::Cell.new('┘')
     end
 
     private def handle_key(key : String)

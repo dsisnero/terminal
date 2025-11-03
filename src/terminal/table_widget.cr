@@ -133,30 +133,25 @@ module Terminal
       optimal_width = calculate_min_width
       optimal_height = calculate_min_height
 
-      # Use the smaller of requested vs optimal for both dimensions
       actual_width = {width, optimal_width}.min
       actual_height = {height, optimal_height}.min
 
-      grid = [] of Array(Terminal::Cell)
-      # Borders: top line
-      grid << border_line(optimal_width)
+      inner_width = {actual_width - 2, 0}.max
+      inner_height = {actual_height - 2, 0}.max
 
-      inner_width = optimal_width - 2
-      # Header line
-      header_cells = compose_header(inner_width)
-      grid << line_with_borders(header_cells)
+      content_lines = [] of Array(Terminal::Cell)
+      content_lines << compose_header(inner_width)
 
-      # Body rows - only show as many as fit in optimal height
-      max_data_rows = optimal_height - 3 # subtract header + top/bottom borders
+      max_data_rows = [inner_height - 1, 0].max
       each_row_sorted.first(max_data_rows).each_with_index do |row, idx|
-        cells = compose_row(row, inner_width, idx) # Pass index for highlighting
-        grid << line_with_borders(cells)
+        content_lines << compose_row(row, inner_width, idx)
       end
 
-      # Bottom border
-      grid << border_line(optimal_width)
+      while content_lines.size < inner_height
+        content_lines << Array.new(inner_width) { Terminal::Cell.new(' ') }
+      end
 
-      grid
+      build_bordered_cell_grid(actual_width, actual_height, 0, content_lines)
     end
 
     private def each_row_sorted
@@ -284,14 +279,6 @@ module Terminal
         cells << Terminal::Cell.new(' ', text_color, bg_color)
       end
       cells[0...inner_width]
-    end
-
-    private def border_line(width : Int32) : Array(Terminal::Cell)
-      Array.new(width) { Terminal::Cell.new('-') }
-    end
-
-    private def line_with_borders(inner_cells : Array(Terminal::Cell)) : Array(Terminal::Cell)
-      [Terminal::Cell.new('|')] + inner_cells + [Terminal::Cell.new('|')]
     end
   end
 end

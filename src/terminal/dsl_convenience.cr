@@ -95,7 +95,7 @@ module Terminal
         @app_builder.layout :four_quadrant do |layout|
           if layout.is_a?(ApplicationDSL::FourQuadrantLayout)
             layout.top_left("chat", 70, 75)
-            layout.top_right("status", 30, 75) 
+            layout.top_right("status", 30, 75)
             layout.bottom_left("system", 70, 20)
             layout.bottom_right("help", 30, 20)
             layout.bottom_full("input", 3)
@@ -109,25 +109,25 @@ module Terminal
     # Enhanced ApplicationBuilder with more convenience methods
     class ApplicationBuilder
       # Shorthand layout methods with proper typing
-      def four_quadrant
+      def four_quadrant(&)
         layout_builder = Terminal::ApplicationDSL::FourQuadrantLayout.new(@width, @height)
         yield layout_builder
         @layout_areas = layout_builder.areas
       end
 
-      def grid(rows : Int32 = 2, cols : Int32 = 2)
+      def grid(rows : Int32 = 2, cols : Int32 = 2, &)
         layout_builder = Terminal::ApplicationDSL::GridLayout.new(@width, @height, rows, cols)
         yield layout_builder
         @layout_areas = layout_builder.areas
       end
 
-      def vertical
+      def vertical(&)
         layout_builder = Terminal::ApplicationDSL::VerticalLayout.new(@width, @height)
         yield layout_builder
         @layout_areas = layout_builder.areas
       end
 
-      def horizontal
+      def horizontal(&)
         layout_builder = Terminal::ApplicationDSL::HorizontalLayout.new(@width, @height)
         yield layout_builder
         @layout_areas = layout_builder.areas

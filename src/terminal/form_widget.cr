@@ -76,6 +76,7 @@ module Terminal
     @on_submit : Proc(Hash(String, String), Nil)?
     @title : String
     @submit_label : String
+    @padding : Int32
 
     def initialize(
       @id : String,
@@ -87,6 +88,7 @@ module Terminal
       @expanded_dropdown = nil
       @on_submit = nil
       @can_focus = true
+      @padding = 1
     end
 
     def on_submit(&block : Hash(String, String) -> Nil)
@@ -220,120 +222,135 @@ module Terminal
 
     # Calculate minimum width needed for the form based on content
     def calculate_min_width : Int32
-      # Start with title width
+      min_content, _ = form_content_width_bounds
+      min_content + structural_width_padding
+    end
+
+    def calculate_max_width : Int32
+      _, max_content = form_content_width_bounds
+      max_content + structural_width_padding
+    end
+
+    def calculate_min_height : Int32
+      min_content, _ = form_content_height_bounds
+      min_content + structural_height_padding
+    end
+
+    def calculate_max_height : Int32
+      _, max_content = form_content_height_bounds
+      max_content + structural_height_padding
+    end
+
+    private def structural_width_padding : Int32
+      (@padding * 2) + 2
+    end
+
+    private def structural_height_padding : Int32
+      (@padding * 2) + 2
+    end
+
+    private def form_content_width_bounds : {Int32, Int32}
       min_width = text_width(@title) + 4 # Title + some padding
 
-      # Check each control's requirements
       @controls.each do |control|
-        case control.type
-        when .text_input?
-          # Use helper method for label + content width
-          control_width = label_content_width(control.label, 25) # Allow for input text
-        when .dropdown?
-          # Label + longest option + dropdown indicator
-          if options = control.options
-            longest_option = max_text_width(options)
-            control_width = label_content_width(control.label, longest_option + 3) # Arrow + padding
-          else
-            control_width = label_content_width(control.label, 15)
-          end
-        when .checkbox?, .radio?
-          # Label + checkbox/radio indicator
-          control_width = label_content_width(control.label, 3) # Checkbox symbol
-        else
-          control_width = label_content_width(control.label, 10)
-        end
+        control_width = case control.type
+                        when .text_input?
+                          label_content_width(control.label, 25)
+                        when .dropdown?
+                          if options = control.options
+                            longest_option = max_text_width(options)
+                            label_content_width(control.label, longest_option + 3)
+                          else
+                            label_content_width(control.label, 15)
+                          end
+                        when .checkbox?, .radio?
+                          label_content_width(control.label, 3)
+                        else
+                          label_content_width(control.label, 10)
+                        end
 
         min_width = {min_width, control_width}.max
       end
 
-      # Add submit button width
-      submit_width = text_width(@submit_label) + 6 # Button styling
+      submit_width = text_width(@submit_label) + 6
       min_width = {min_width, submit_width}.max
 
-      # Minimum reasonable width
-      {min_width, 30}.max
+      min_width = {min_width, 30}.max
+      max_width = {min_width, 70}.min
+      {min_width, max_width}
     end
 
-    # Calculate maximum reasonable width for the form
-    def calculate_max_width : Int32
-      # Forms shouldn't be too wide - max based on content but capped
-      content_width = calculate_min_width
-      {content_width, 70}.min # Cap at reasonable width
-    end
+    private def form_content_height_bounds : {Int32, Int32}
+      base_lines = 2                   # title + separator
+      base_lines += @controls.size * 2 # control + spacer
+      base_lines += 1                  # submit button
 
-    # Calculate minimum height needed for the form
-    def calculate_min_height : Int32
-      # Title + separator + controls + submit button
-      lines = 2                   # title + separator
-      lines += @controls.size * 2 # Each control + spacer
-      lines += 1                  # submit button
-
-      # Account for expanded dropdowns (estimate)
       @controls.each do |control|
         if control.type.dropdown? && control.options
-          # If expanded, would need extra lines for options
-          lines += 1 # Just add one for potential expansion
+          base_lines += 1
         end
       end
 
-      {lines, 5}.max # Minimum reasonable height
-    end
+      min_lines = {base_lines, 5}.max
 
-    # Calculate maximum reasonable height for the form
-    def calculate_max_height : Int32
-      # All content + potential dropdown expansions
-      lines = calculate_min_height
-
-      # Add potential for all dropdowns to be expanded
+      max_lines = min_lines
       @controls.each do |control|
         if control.type.dropdown? && control.options
-          lines += control.options.size # Full expansion
+          max_lines += control.options.size
         end
       end
 
-      {lines, 30}.min # Cap at reasonable height
+      max_lines = {max_lines, 30}.min
+      {min_lines, max_lines}
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Always use optimal dimensions - ignore oversized requests
-      optimal_width = calculate_min_width
-      optimal_height = calculate_min_height
+      return Array.new(height) { Array.new(width) { Terminal::Cell.new(' ') } } if width <= 0 || height <= 0
 
-      result = [] of Array(Terminal::Cell)
+      content_width = {width - 2 - (@padding * 2), 0}.max
+      content_height = {height - 2 - (@padding * 2), 0}.max
 
-      # Title line
-      title_line = render_title_line(optimal_width)
-      result << title_line
+      content_lines = [] of Array(Terminal::Cell)
 
-      # Separator
-      result << Array.new(optimal_width) { Terminal::Cell.new('─', fg: "cyan") }
+      content_lines << render_title_line(content_width)
+      content_lines << render_separator_line(content_width)
 
-      # Render each control
       @controls.each_with_index do |control, idx|
         focused = (idx == @focused_index)
         expanded = (@expanded_dropdown == control.id)
 
-        control_lines = render_control(control, focused, expanded, optimal_width)
-        result.concat(control_lines)
+        control_lines = render_control(control, focused, expanded, content_width)
+        content_lines.concat(control_lines)
 
-        # Show error if present
         if error = control.error
-          error_line = render_error_line(error, optimal_width)
-          result << error_line
+          content_lines << render_error_line(error, content_width)
         end
 
-        # Spacer
-        result << Array.new(optimal_width) { Terminal::Cell.new(' ') }
+        content_lines << blank_line(content_width)
       end
 
-      # Submit button
       submit_focused = (@focused_index == @controls.size)
-      submit_line = render_submit_button(submit_focused, optimal_width)
-      result << submit_line
+      content_lines << render_submit_button(submit_focused, content_width)
 
-      # Return only the content we need - don't pad to requested height
-      result
+      visible_lines = if content_height > 0
+                        content_lines.first(content_height)
+                      else
+                        [] of Array(Terminal::Cell)
+                      end
+
+      while visible_lines.size < content_height
+        visible_lines << blank_line(content_width)
+      end
+
+      build_bordered_cell_grid(width, height, @padding, visible_lines)
+    end
+
+    private def render_separator_line(width : Int32) : Array(Terminal::Cell)
+      Array.new(width) { Terminal::Cell.new('─', fg: "cyan") }
+    end
+
+    private def blank_line(width : Int32, bg : String = "default") : Array(Terminal::Cell)
+      Array.new(width) { Terminal::Cell.new(' ', bg: bg) }
     end
 
     private def render_title_line(width : Int32) : Array(Terminal::Cell)
@@ -468,11 +485,12 @@ module Terminal
       bg = focused ? "green" : "blue"
 
       # Center the button
-      padding = (width - text.size) // 2
-      line = Array.new(width) { Terminal::Cell.new(' ') }
+      padding = width > text.size ? (width - text.size) // 2 : 0
+      line = Array.new(width) { Terminal::Cell.new(' ', fg: "white", bg: bg, bold: focused) }
 
       text.chars.each_with_index do |ch, i|
         pos = padding + i
+        next if pos < 0
         break if pos >= width
         line[pos] = Terminal::Cell.new(ch, fg: "white", bg: bg, bold: true)
       end

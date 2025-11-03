@@ -23,7 +23,7 @@ describe Terminal::ApplicationDSL do
           input.prompt("Test: ")
         end
 
-        builder.on_input("input") do |text|
+        builder.on_input("input") do |_text|
           input_received = true
         end
 

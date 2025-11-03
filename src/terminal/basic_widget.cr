@@ -19,13 +19,15 @@ module Terminal
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      if height == 1 # Single line mode - no borders
-        [Array.new(width) { |i| Terminal::Cell.new(@content[i]? || ' ') }]
-      else # Normal bordered mode
-        inner_width, inner_height = inner_dimensions(width, height)
-        content_lines = wrap_words(@content, inner_width, inner_height)
-        create_full_grid(width, height, content_lines)
+      return [Array.new(width) { |i| Terminal::Cell.new(@content[i]? || ' ') }] if height <= 1
+
+      inner_width, inner_height = inner_dimensions(width, height)
+      text_lines = wrap_words(@content, inner_width, inner_height)
+      formatted_lines = text_lines.map do |line|
+        Array.new(line.size) { |idx| Terminal::Cell.new(line[idx]) }
       end
+
+      build_bordered_cell_grid(width, height, 0, formatted_lines)
     end
 
     # Implement required Measurable methods

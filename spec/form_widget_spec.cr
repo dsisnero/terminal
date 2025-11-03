@@ -288,8 +288,23 @@ describe Terminal::FormWidget do
         )
 
         grid = form.render(50, 10)
-        first_line = grid[0].map(&.char).join
-        first_line.should contain("Registration Form")
+        lines_text = grid.map(&.map(&.char).join)
+        lines_text.any?(&.includes?("Registration Form")).should be_true
+      end
+
+      it "wraps form content inside a bordered box" do
+        form = Terminal::FormWidget.new(id: "bordered")
+
+        grid = form.render(40, 12)
+        top_row = grid.first
+        bottom_row = grid.last
+
+        top_row.first.char.should eq('┌')
+        top_row.last.char.should eq('┐')
+        grid[1].first.char.should eq('│')
+        grid[1].last.char.should eq('│')
+        bottom_row.first.char.should eq('└')
+        bottom_row.last.char.should eq('┘')
       end
 
       it "renders all controls with labels" do

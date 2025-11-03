@@ -192,6 +192,56 @@ module Terminal
       lines
     end
 
+    protected def build_bordered_cell_grid(width : Int32, height : Int32, padding : Int32, content_lines : Array(Array(Terminal::Cell))) : Array(Array(Terminal::Cell))
+      return Array.new(height) { Array.new(width) { Terminal::Cell.new(' ') } } if width <= 0 || height <= 0
+
+      grid = Array.new(height) { Array.new(width) { Terminal::Cell.new(' ') } }
+      draw_border!(grid)
+
+      max_row = height - 1 - padding
+      max_col = width - 1 - padding
+
+      content_lines.each_with_index do |line, row_idx|
+        target_row = 1 + padding + row_idx
+        break if target_row > max_row
+
+        line.each_with_index do |cell, col_idx|
+          target_col = 1 + padding + col_idx
+          break if target_col > max_col
+          grid[target_row][target_col] = cell
+        end
+      end
+
+      grid
+    end
+
+    protected def draw_border!(grid : Array(Array(Terminal::Cell)))
+      height = grid.size
+      width = grid.first?.try(&.size) || 0
+      return if width <= 0 || height <= 0
+
+      top = grid.first
+      bottom = grid.last
+      width.times do |col|
+        char = (col.zero? || col == width - 1) ? '┌' : '─'
+        top[col] = Terminal::Cell.new(char)
+        char = (col.zero? || col == width - 1) ? '└' : '─'
+        bottom[col] = Terminal::Cell.new(char)
+      end
+
+      (1...(height - 1)).each do |row|
+        grid[row][0] = Terminal::Cell.new('│')
+        grid[row][width - 1] = Terminal::Cell.new('│')
+      end
+
+      if width >= 2 && height >= 2
+        grid[0][0] = Terminal::Cell.new('┌')
+        grid[0][width - 1] = Terminal::Cell.new('┐')
+        grid[height - 1][0] = Terminal::Cell.new('└')
+        grid[height - 1][width - 1] = Terminal::Cell.new('┘')
+      end
+    end
+
     # Calculate minimum width needed for content - widgets should override this
     def calculate_min_width : Int32
       # Default implementation - widgets should provide their own

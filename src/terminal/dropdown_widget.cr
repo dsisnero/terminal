@@ -156,55 +156,36 @@ module Terminal
 
     # Calculate minimum height for dropdown
     def calculate_min_height : Int32
-      if @expanded
-        # Prompt + visible options (limited)
-        visible_options = {filtered_options.size, 8}.min # Show max 8 options
-        1 + visible_options                              # prompt line + options
-      else
-        1 # Just the prompt line when collapsed
-      end
+      1
     end
 
-    # Calculate maximum height for dropdown
-    def calculate_max_height : Int32
-      if @expanded
-        # Prompt + all options but cap it
-        1 + {filtered_options.size, 10}.min # Max 10 options visible
-      else
-        1 # Just the prompt line when collapsed
-      end
+    def calculate_max_height : Terminal::Geometry::Size
+      visible = @expanded ? [filtered_options.size, 10].min : 0
+      Terminal::Geometry::Size.new(calculate_min_width, 1 + visible)
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Always use optimal dimensions - ignore oversized requests
       optimal_width = calculate_min_width
-      optimal_height = calculate_min_height
+      actual_width = {width, optimal_width}.min
+      actual_height = {height, calculate_max_height.height}.min
 
-      result = [] of Array(Terminal::Cell)
+      prompt_line = render_prompt_line(actual_width)
+      content = [prompt_line]
 
-      # Prompt line with current selection indicator
-      result << render_prompt_line(optimal_width)
-
-      # If expanded, show options (use optimal height to determine how many)
       if @expanded
         filtered = filtered_options
-        max_visible = optimal_height - 1 # Reserve space for prompt line
+        max_visible = [actual_height - 1, 0].max
 
-        filtered.each_with_index do |option, idx|
-          break if idx >= max_visible
-          option_line = render_option_line(option, option == current_option, optimal_width)
-          result << option_line
+        filtered.first(max_visible).each do |option|
+          content << render_option_line(option, option == current_option, actual_width)
         end
 
-        # Show filter if active
-        if !@filter.empty?
-          filter_line = render_filter_line(optimal_width)
-          result << filter_line
+        if !@filter.empty? && content.size < actual_height
+          content << render_filter_line(actual_width)
         end
       end
 
-      # Return only the content we need - don't pad to requested height
-      result
+      content
     end
 
     private def render_prompt_line(width : Int32) : Array(Terminal::Cell)

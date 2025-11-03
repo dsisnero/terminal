@@ -23,7 +23,7 @@ describe Terminal do
           input.prompt("You: ")
         end
 
-        chat.on_user_input do |text|
+        chat.on_user_input do |_text|
           # Test callback setup
         end
       end
@@ -60,7 +60,7 @@ describe Terminal::ApplicationDSL::ChatApplicationBuilder do
 
     builder = Terminal::ApplicationDSL::ChatApplicationBuilder.new("Test", 80, 24)
 
-    builder.on_user_input { |text| input_handled = true }
+    builder.on_user_input { |_text| input_handled = true }
     builder.on_key(:escape) { key_handled = true }
 
     app = builder.build_application
@@ -77,8 +77,8 @@ describe Terminal::ApplicationDSL::ApplicationBuilder do
           layout.bottom_right("br")
         end
 
-        builder.text_widget("tl") { |t| t.content("Top Left") }
-        builder.text_widget("br") { |t| t.content("Bottom Right") }
+        builder.text_widget("tl", &.content("Top Left"))
+        builder.text_widget("br", &.content("Bottom Right"))
       end
 
       app.should be_a(Terminal::TerminalApplication(Terminal::Widget))
@@ -91,8 +91,8 @@ describe Terminal::ApplicationDSL::ApplicationBuilder do
           layout.cell("c2", 1, 1)
         end
 
-        builder.text_widget("c1") { |t| t.content("Cell 1") }
-        builder.text_widget("c2") { |t| t.content("Cell 2") }
+        builder.text_widget("c1", &.content("Cell 1"))
+        builder.text_widget("c2", &.content("Cell 2"))
       end
 
       app.should be_a(Terminal::TerminalApplication(Terminal::Widget))
@@ -105,8 +105,8 @@ describe Terminal::ApplicationDSL::ApplicationBuilder do
           layout.section("bottom", 14)
         end
 
-        builder.text_widget("top") { |t| t.content("Top") }
-        builder.text_widget("bottom") { |t| t.content("Bottom") }
+        builder.text_widget("top", &.content("Top"))
+        builder.text_widget("bottom", &.content("Bottom"))
       end
 
       app.should be_a(Terminal::TerminalApplication(Terminal::Widget))
@@ -140,7 +140,7 @@ describe Terminal::ApplicationDSL::ApplicationBuilder do
           theme.success(:green, :default, true)
         end
 
-        builder.text_widget("test") { |t| t.content("Themed") }
+        builder.text_widget("test", &.content("Themed"))
       end
 
       app.should be_a(Terminal::TerminalApplication(Terminal::Widget))

@@ -19,25 +19,21 @@ module Terminal
       height = 6
       grid = table.render(width, height)
 
-      # Top and bottom borders
-      grid.first.each(&.char.should(eq('-')))
-      grid.last.each(&.char.should(eq('-')))
+      lines = grid.map(&.map(&.char).join)
 
-      # Header should contain sort arrow for Age column
-      header_line = grid[1]
-      header_text = header_line.map(&.char).join
+      lines.first.should eq("┌──────────────────────┐")
+      lines.last.should eq("└──────────────────────┘")
+
+      header_text = lines[1]
       header_text.should contain("Name")
       header_text.should contain("Age")
       header_text.should contain("▲")
 
-      # Borders '|' at left and right
-      [grid[1], grid[2]].each do |line|
-        line.first.char.should eq('|')
-        line.last.char.should eq('|')
-      end
+      lines[1].starts_with?("│").should be_true
+      lines[1].ends_with?("│").should be_true
 
       # Verify rows sorted by age ascending (Bob, Alice, Cara)
-      row_texts = grid[2..-2].map(&.map(&.char).join)
+      row_texts = lines[2..-2]
       row_texts.join.should contain("Bob")
       row_texts.join.should contain("Alice")
       row_texts.join.should contain("Cara")

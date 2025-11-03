@@ -47,7 +47,7 @@ describe "Enhanced Terminal DSL Integration" do
       end
 
       # Event handling
-      builder.on_input("input") do |text|
+      builder.on_input("input") do |_text|
         # Would handle user input
       end
 
@@ -84,7 +84,7 @@ describe "Enhanced Terminal DSL Integration" do
         input.prompt("Say: ")
       end
 
-      chat.on_user_input do |text|
+      chat.on_user_input do |_text|
         # Handle chat message
       end
 
@@ -135,7 +135,7 @@ describe "Enhanced Terminal DSL Integration" do
           layouts_tested << :four_quadrant
         end
       end
-      builder.text_widget("tl") { |t| t.content("test") }
+      builder.text_widget("tl", &.content("test"))
     end
 
     # Test grid
@@ -146,7 +146,7 @@ describe "Enhanced Terminal DSL Integration" do
           layouts_tested << :grid
         end
       end
-      builder.text_widget("c1") { |t| t.content("test") }
+      builder.text_widget("c1", &.content("test"))
     end
 
     # Test vertical
@@ -157,7 +157,7 @@ describe "Enhanced Terminal DSL Integration" do
           layouts_tested << :vertical
         end
       end
-      builder.text_widget("s1") { |t| t.content("test") }
+      builder.text_widget("s1", &.content("test"))
     end
 
     # Test horizontal
@@ -168,7 +168,7 @@ describe "Enhanced Terminal DSL Integration" do
           layouts_tested << :horizontal
         end
       end
-      builder.text_widget("s1") { |t| t.content("test") }
+      builder.text_widget("s1", &.content("test"))
     end
 
     layouts_tested.should eq([:four_quadrant, :grid, :vertical, :horizontal])
