@@ -98,11 +98,31 @@ end
 app.start
 ```
 
+## CLI Prompts & TTY Utilities
+
+Need lightweight input for scripts? The synchronous helpers avoid spinning up the full event loop:
+
+```crystal
+require "terminal/prompts"
+
+username = Terminal::Prompts.ask("User:")
+password = Terminal::Prompts.password("Password:")
+```
+
+Both helpers use the shared `Terminal::TTY.with_raw_mode` adapter, so masking and backspace work the same across macOS, Linux, and Windows. Advanced use cases can call the adapter directly:
+
+```crystal
+Terminal::TTY.with_raw_mode do
+  # Your console logic here (raw mode, no echo)
+end
+```
+
 ## Documentation
 
 - **[DSL Usage Guide](DSL_USAGE_GUIDE.md)** - Complete documentation with examples
 - **[Enhanced DSL Demo](examples/enhanced_dsl_demo.cr)** - Working example code
 - **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** - Architecture overview
+- **[Windows Dev Box Setup](docs/windows_devbox_setup.md)** - Provision a cloud VM for Windows-specific testing
 
 ## Legacy Quick Start (Low-Level API)
 
@@ -166,7 +186,7 @@ Defined in `src/terminal/messages.cr`. Key types:
 - `DummyInputProvider`: emits a sequence for tests
 - `ConsoleInputProvider`: stubbed for now
 - `RawInputProvider` (Unix): termios raw mode + non-blocking read, bracketed paste
-- `RawInputProvider` (Windows): enables VT-input; minimal stub (guarded with `flag?(:win32)`)
+- `RawInputProvider` (Windows): toggles VT input, disables echo/line mode, emits key events (guarded with `flag?(:win32)`)
 
 `InputProvider.default` picks the best available.
 
