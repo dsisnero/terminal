@@ -1,0 +1,37 @@
+inherit_from:
+  - default
+
+exclude_paths:
+  - docs/**
+  - examples/**
+  - interactive_*/**
+
+Naming/BlockParameterName:
+  AllowedNames:
+    - ch
+    - i
+    - j
+    - a
+    - b
+    - key
+    - c
+    - cmd
+    - io
+
+Naming/AccessorMethodName:
+  Enabled: false
+
+Naming/QueryBoolMethods:
+  Enabled: false
+
+Style/MultilineCurlyBlock:
+  Enabled: false
+
+Lint/NotNil:
+  Enabled: false
+
+Lint/UselessAssign:
+  Enabled: false
+
+Metrics/CyclomaticComplexity:
+  Enabled: false
