@@ -37,19 +37,12 @@ module Terminal
         child
       end
 
-      def widget(id : String, constraint : Constraint = Constraint.flex)
-        @node.add_child(LayoutNode.new(constraint, nil, id))
+      def widget(id : String | Symbol, constraint : Constraint = Constraint.flex)
+        @node.add_child(LayoutNode.new(constraint, nil, id.to_s))
       end
     end
 
     class Builder
-      @widgets : Hash(String, Terminal::Widget)
-      @layout_root : LayoutNode
-      @input_handlers : Hash(String, Proc(String, Nil))
-      @tickers : Array(Tuple(Time::Span, Proc(Nil)))
-      @on_start : Proc(Nil)?
-      @on_stop : Proc(Nil)?
-
       getter width : Int32
       getter height : Int32
 
@@ -57,6 +50,7 @@ module Terminal
         @widgets = {} of String => Terminal::Widget
         @layout_root = LayoutNode.new(Constraint.flex, Direction::Vertical)
         @input_handlers = {} of String => Proc(String, Nil)
+        @key_handlers = Hash(String, Array(Tuple(Bool, Proc(Nil)))).new { |hash, key| hash[key] = [] of Tuple(Bool, Proc(Nil)) }
         @tickers = [] of Tuple(Time::Span, Proc(Nil))
         @on_start = nil
         @on_stop = nil
@@ -66,36 +60,45 @@ module Terminal
         block.call(LayoutBuilder.new(@layout_root))
       end
 
-      def mount(id : String, widget : Terminal::Widget)
-        @widgets[id] = widget
+      def mount(id : String | Symbol, widget : Terminal::Widget)
+        key = normalize_id(id)
+        @widgets[key] = widget
       end
 
-      def text_box(id : String, &block : TextBoxWidget -> Nil)
-        widget = Terminal::TextBoxWidget.new(id)
+      def text_box(id : String | Symbol, &block : TextBoxWidget -> Nil)
+        key = normalize_id(id)
+        widget = Terminal::TextBoxWidget.new(key)
         block.call(widget)
-        mount(id, widget)
+        mount(key, widget)
       end
 
-      def table(id : String, &block : TableWidget -> Nil)
-        widget = Terminal::TableWidget.new(id)
+      def table(id : String | Symbol, &block : TableWidget -> Nil)
+        key = normalize_id(id)
+        widget = Terminal::TableWidget.new(key)
         block.call(widget)
-        mount(id, widget)
+        mount(key, widget)
       end
 
-      def input(id : String, &block : InputWidget -> Nil)
-        widget = Terminal::InputWidget.new(id: id)
+      def input(id : String | Symbol, &block : InputWidget -> Nil)
+        key = normalize_id(id)
+        widget = Terminal::InputWidget.new(id: key)
         block.call(widget)
-        mount(id, widget)
+        mount(key, widget)
       end
 
-      def spinner(id : String, label : String = "", &block : SpinnerWidget -> Nil)
-        widget = Terminal::SpinnerWidget.new(id, label)
+      def spinner(id : String | Symbol, label : String = "", &block : SpinnerWidget -> Nil)
+        key = normalize_id(id)
+        widget = Terminal::SpinnerWidget.new(key, label)
         block.call(widget)
-        mount(id, widget)
+        mount(key, widget)
       end
 
-      def on_input(widget_id : String, &block : String -> Nil)
-        @input_handlers[widget_id] = block
+      def on_input(widget_id : String | Symbol, &block : String -> Nil)
+        @input_handlers[normalize_id(widget_id)] = block
+      end
+
+      def on_key(key : String | Symbol, consume : Bool = true, &block : -> Nil)
+        @key_handlers[normalize_key(key)] << {consume, block}
       end
 
       def every(interval : Time::Span, &block : -> Nil)
@@ -116,6 +119,7 @@ module Terminal
         manager = WidgetManager(Terminal::Widget).new(@widgets, @layout_root)
 
         attach_input_handlers
+        attach_key_handlers(manager)
 
         app = TerminalApplication(Terminal::Widget).new(
           widget_manager: manager,
@@ -149,6 +153,14 @@ module Terminal
         end
       end
 
+      private def attach_key_handlers(manager : WidgetManager(Terminal::Widget))
+        @key_handlers.each do |key, handlers|
+          handlers.each do |consume, handler|
+            manager.register_key_handler(key, consume, &handler)
+          end
+        end
+      end
+
       private def schedule_start_and_ticks
         if handler = @on_start
           spawn { handler.call }
@@ -162,6 +174,15 @@ module Terminal
             end
           end
         end
+      end
+
+      private def normalize_id(id : String | Symbol) : String
+        id.is_a?(Symbol) ? id.to_s : id
+      end
+
+      private def normalize_key(key : String | Symbol) : String
+        raw = key.is_a?(Symbol) ? key.to_s : key
+        raw.downcase
       end
     end
   end

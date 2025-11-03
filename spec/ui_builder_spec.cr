@@ -32,8 +32,8 @@ describe Terminal do
 
     manager = app.widget_manager
     grid = manager.compose(20, 6)
-    left_chars = grid.map { |row| row[0, 10].map(&.char) }.flatten.uniq
-    right_chars = grid.map { |row| row[10, 10].map(&.char) }.flatten.uniq
+    left_chars = grid.flat_map { |row| row[0, 10].map(&.char) }.uniq
+    right_chars = grid.flat_map { |row| row[10, 10].map(&.char) }.uniq
 
     left_chars.flatten.compact.should contain('L')
     right_chars.flatten.compact.should contain('R')

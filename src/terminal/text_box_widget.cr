@@ -9,12 +9,17 @@ module Terminal
     getter id : String
     property content : String
     property auto_scroll : Bool
+    getter scroll_offset : Int32
 
     @fg_color : Symbol | String
     @bg_color : Symbol | String
     @bold : Bool
     @padding : Int32
     @scroll_offset : Int32
+    @last_inner_width : Int32
+    @last_inner_height : Int32
+    @last_wrapped_lines : Int32
+    @pending_auto_scroll : Bool
 
     def initialize(
       @id : String,
@@ -23,20 +28,30 @@ module Terminal
       @bg_color : Symbol | String = :default,
       @bold : Bool = false,
       @auto_scroll : Bool = true,
-      @padding : Int32 = 1
+      @padding : Int32 = 1,
     )
       @scroll_offset = 0
+      @last_inner_width = 0
+      @last_inner_height = 0
+      @last_wrapped_lines = 0
+      @pending_auto_scroll = false
     end
 
     def append_text(text : String)
       @content += text
-      auto_scroll_to_bottom if @auto_scroll
+      if @auto_scroll
+        @pending_auto_scroll = true
+        clamp_scroll_offset
+      end
     end
 
     def set_text(text : String)
       @content = text
       @scroll_offset = 0
-      auto_scroll_to_bottom if @auto_scroll
+      if @auto_scroll
+        @pending_auto_scroll = true
+        clamp_scroll_offset
+      end
     end
 
     # Convenient aliases for dynamic updates
@@ -51,12 +66,16 @@ module Terminal
     def add_line(line : String)
       @content += "\n" unless @content.empty?
       @content += line
-      auto_scroll_to_bottom if @auto_scroll
+      if @auto_scroll
+        @pending_auto_scroll = true
+        clamp_scroll_offset
+      end
     end
 
     def clear
       @content = ""
       @scroll_offset = 0
+      @pending_auto_scroll = false
     end
 
     def handle(msg : Terminal::Msg::Any)
@@ -91,7 +110,7 @@ module Terminal
       end
 
       lines = @content.lines
-      max_line_width = lines.map { |line| Terminal::TextMeasurement.text_width(line) }.max? || 0
+      max_line_width = lines.max_of? { |line| Terminal::TextMeasurement.text_width(line) } || 0
       content_height = lines.size
 
       # Add borders and padding
@@ -107,23 +126,56 @@ module Terminal
     end
 
     private def render_single_line(width : Int32) : Array(Array(Terminal::Cell))
+      width = [width, 1].max
       # Truncate content to fit in single line
       display_text = @content.gsub(/\s+/, " ").strip
       if display_text.size > width
-        display_text = display_text[0, width - 3] + "..."
+        display_text = if width > 3
+                         display_text[0, width - 3] + "..."
+                       else
+                         display_text[0, width]
+                       end
       end
 
       cells = style(display_text.ljust(width), @fg_color, @bg_color, @bold)
+      @last_inner_width = width
+      @last_inner_height = 1
+      @last_wrapped_lines = 1
+      @pending_auto_scroll = false if @scroll_offset <= 0
       [cells[0, width]]
     end
 
     private def render_multi_line(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
       inner_width, inner_height = inner_dimensions(width, height)
-      content_lines = wrap_and_format_content(inner_width, inner_height)
+      wrapped_lines = wrap_content_lines(inner_width)
+      @last_inner_width = inner_width
+      @last_inner_height = inner_height
+      @last_wrapped_lines = wrapped_lines.size
+
+      max_offset = current_max_scroll_offset
+
+      if @pending_auto_scroll
+        @scroll_offset = max_offset
+        @pending_auto_scroll = false
+      end
+
+      @scroll_offset = {@scroll_offset, 0}.max
+      @scroll_offset = {@scroll_offset, max_offset}.min
+
+      visible_strings = select_visible_lines(wrapped_lines, inner_height)
+      content_lines = visible_strings.map do |line|
+        style(line.ljust(inner_width), @fg_color, @bg_color, @bold)
+      end
+
+      while content_lines.size < inner_height
+        content_lines << style("".ljust(inner_width), @fg_color, @bg_color, @bold)
+      end
+
       create_full_grid(width, height, content_lines)
     end
 
-    private def wrap_and_format_content(inner_width : Int32, inner_height : Int32) : Array(Array(Terminal::Cell))
+    private def wrap_content_lines(inner_width : Int32) : Array(String)
+      inner_width = [inner_width, 1].max
       lines = @content.lines
       wrapped_lines = [] of String
 
@@ -132,28 +184,26 @@ module Terminal
           wrapped_lines << ""
         else
           # Wrap long lines
-          while line.size > inner_width
-            wrapped_lines << line[0, inner_width]
-            line = line[inner_width..]
+          slice = line.dup
+          while slice.size > inner_width
+            wrapped_lines << slice[0, inner_width]
+            slice = slice[inner_width..]
           end
-          wrapped_lines << line if line.size > 0
+          wrapped_lines << slice if slice.size > 0
         end
       end
 
-      # Apply scrolling
-      visible_lines = if wrapped_lines.size > inner_height
-        start_idx = [@scroll_offset, 0].max
-        end_idx = [start_idx + inner_height, wrapped_lines.size].min
-        wrapped_lines[start_idx, end_idx - start_idx]
-      else
-        wrapped_lines[0, inner_height]
-      end
+      wrapped_lines = [""] if wrapped_lines.empty?
+      wrapped_lines
+    end
 
-      # Convert to styled cells
-      visible_lines.map do |line|
-        padded_line = line.ljust(inner_width)
-        style(padded_line, @fg_color, @bg_color, @bold)
-      end
+    private def select_visible_lines(wrapped_lines : Array(String), inner_height : Int32) : Array(String)
+      return [] of String if inner_height <= 0
+      max_offset = [wrapped_lines.size - inner_height, 0].max
+      offset = {@scroll_offset, 0}.max
+      offset = {offset, max_offset}.min
+      visible = wrapped_lines[offset, inner_height] || [] of String
+      visible
     end
 
     private def inner_dimensions(width : Int32, height : Int32) : {Int32, Int32}
@@ -207,35 +257,52 @@ module Terminal
       grid[height - 1][width - 1] = Terminal::Cell.new('┘')
     end
 
-    private def handle_key(key : Terminal::Key)
+    private def handle_key(key : String)
       case key
-      when .up?
+      when "up"
         scroll_up
-      when .down?
+      when "down"
         scroll_down
-      when .page_up?
+      when "page_up"
         scroll_up(10)
-      when .page_down?
+      when "page_down"
         scroll_down(10)
-      when .home?
+      when "home"
         @scroll_offset = 0
-      when .end?
+        @pending_auto_scroll = false
+      when "end"
         auto_scroll_to_bottom
       end
+      clamp_scroll_offset
     end
 
     private def scroll_up(lines : Int32 = 1)
       @scroll_offset = [@scroll_offset - lines, 0].max
+      @pending_auto_scroll = false
     end
 
     private def scroll_down(lines : Int32 = 1)
-      max_lines = @content.lines.size
-      @scroll_offset = [@scroll_offset + lines, max_lines - 1].min
+      @scroll_offset += lines
+      @pending_auto_scroll = false
+      clamp_scroll_offset
     end
 
     private def auto_scroll_to_bottom
-      lines = @content.lines
-      @scroll_offset = [lines.size - 1, 0].max
+      @pending_auto_scroll = true
+      clamp_scroll_offset
+    end
+
+    private def current_max_scroll_offset : Int32
+      return 0 if @last_inner_height <= 0
+      max_offset = @last_wrapped_lines - @last_inner_height
+      max_offset = 0 if max_offset < 0
+      max_offset
+    end
+
+    private def clamp_scroll_offset
+      max_offset = current_max_scroll_offset
+      @scroll_offset = [@scroll_offset, 0].max
+      @scroll_offset = {@scroll_offset, max_offset}.min
     end
   end
 end

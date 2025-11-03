@@ -26,17 +26,21 @@ module Terminal
       {% end %}
     end
 
+    alias KeyHandler = Proc(Terminal::Msg::KeyPress, Bool)
+
     @widgets : Array(T)
     @widget_lookup : Hash(String, T)
     @focus_keys : Array(String)
     @focused_index = 0
     @layout_root : UI::LayoutNode?
+    @key_handlers : Hash(String, Array(KeyHandler))
 
     def initialize(widgets : Array(T))
       @widgets = widgets
       @widget_lookup = build_lookup(widgets)
-      @focus_keys = @widgets.map(&.id)
+      @focus_keys = build_focus_keys(@widgets)
       @layout_root = nil
+      @key_handlers = Hash(String, Array(KeyHandler)).new { |hash, key| hash[key] = [] of KeyHandler }
       focus_current
     end
 
@@ -44,32 +48,58 @@ module Terminal
       @widget_lookup = widgets
       @widgets = widgets.values
       @layout_root = layout
-      @focus_keys = layout.leaf_ids.select { |widget_id| @widget_lookup.has_key?(widget_id) }
-      @focus_keys = widgets.keys unless @focus_keys.empty?
+      @key_handlers = Hash(String, Array(KeyHandler)).new { |hash, key| hash[key] = [] of KeyHandler }
+      @focus_keys = layout.leaf_ids.select { |widget_id| focusable_id?(widget_id) }
+      if @focus_keys.empty?
+        @focus_keys = widgets.keys.select { |widget_id| focusable_id?(widget_id) }
+      end
       focus_current
     end
 
     def focus_next
       return if @focus_keys.empty?
-      @focused_index = (@focused_index + 1) % @widgets.size
+      @focused_index = (@focused_index + 1) % @focus_keys.size
       focus_current
     end
 
     def focus_prev
       return if @focus_keys.empty?
-      @focused_index = (@focused_index - 1) % @widgets.size
-      @focused_index = 0 if @focused_index < 0
+      @focused_index -= 1
+      if @focused_index < 0
+        @focused_index = @focus_keys.size - 1
+      end
       focus_current
     end
 
     def route_to_focused(msg : Terminal::Msg::Any)
-      if widget = current_widget
-        widget.handle(msg)
+      case msg
+      when Terminal::Msg::KeyPress
+        consumed = handle_global_key(msg)
+        return if consumed
       end
+
+      current_widget.try(&.handle(msg))
     end
 
     def broadcast(msg : Terminal::Msg::Any)
       @widget_lookup.each_value(&.handle(msg))
+    end
+
+    def register_key_handler(key : String, handler : KeyHandler)
+      normalized = key.downcase
+      @key_handlers[normalized] << handler
+    end
+
+    def register_key_handler(key : String, &block : Terminal::Msg::KeyPress -> Bool)
+      register_key_handler(key, block)
+    end
+
+    def register_key_handler(key : String, consume : Bool = true, &block : -> Nil)
+      handler = ->(_event : Terminal::Msg::KeyPress) do
+        block.call
+        consume
+      end
+      register_key_handler(key, handler)
     end
 
     # Compose all widgets into a full 2D grid.
@@ -112,15 +142,49 @@ module Terminal
       lookup
     end
 
+    private def build_focus_keys(widgets : Enumerable(T)) : Array(String)
+      widgets.compact_map do |widget|
+        widget.id if widget.can_focus
+      end
+    end
+
+    private def focusable_id?(widget_id : String) : Bool
+      if widget = @widget_lookup[widget_id]?
+        widget.can_focus
+      else
+        false
+      end
+    end
+
     private def current_widget : T?
       return nil if @focus_keys.empty?
-      key = @focus_keys[@focused_index]? || @focus_keys.first?
+      key = @focus_keys[@focused_index % @focus_keys.size]?
       key ? @widget_lookup[key]? : nil
     end
 
     private def focus_current
       @widget_lookup.each_value(&.blur)
       current_widget.try(&.focus)
+    end
+
+    private def handle_global_key(event : Terminal::Msg::KeyPress) : Bool
+      key = event.key.downcase
+      case key
+      when "tab"
+        focus_next
+        return true
+      when "shift+tab"
+        focus_prev
+        return true
+      end
+
+      handled = false
+      if handlers = @key_handlers[key]?
+        handlers.each do |handler|
+          handled ||= handler.call(event)
+        end
+      end
+      handled
     end
   end # class WidgetManager(T)
 

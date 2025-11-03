@@ -29,12 +29,22 @@ module Terminal
       @on_change = nil
     end
 
+    def prompt(text : String, bg : String = @prompt_bg)
+      @prompt = text
+      @prompt_bg = bg
+    end
+
     def on_submit(&block : String -> Nil)
       @on_submit = block
     end
 
     def on_change(&block : String -> Nil)
       @on_change = block
+    end
+
+    def clear
+      @value = ""
+      @cursor_pos = 0
     end
 
     def handle(msg : Terminal::Msg::Any)
@@ -122,18 +132,16 @@ module Terminal
     end
 
     def render(width : Int32, height : Int32) : Array(Array(Terminal::Cell))
-      # Always use optimal dimensions - ignore oversized requests
-      optimal_width = calculate_min_width
+      actual_width = {width, 1}.max
+      actual_height = {height, 1}.max
+      result = Array.new(actual_height) { Array.new(actual_width) { Terminal::Cell.new(' ') } }
 
-      result = [] of Array(Terminal::Cell)
-
-      # Single line: prompt + input
-      line = Array.new(optimal_width) { Terminal::Cell.new(' ') }
+      line = result[0]
 
       # Render prompt
       x = 0
       @prompt.each_char do |ch|
-        break if x >= optimal_width
+        break if x >= actual_width
         line[x] = Terminal::Cell.new(ch, fg: "white", bg: @prompt_bg, bold: true)
         x += 1
       end
@@ -141,8 +149,9 @@ module Terminal
       # Render input value
       input_start = x
       @value.chars.each_with_index do |ch, i|
-        break if x >= optimal_width
-        is_cursor = (input_start + i == input_start + @cursor_pos)
+        break if x >= actual_width
+        position = input_start + i
+        is_cursor = (position == input_start + @cursor_pos)
         line[x] = Terminal::Cell.new(
           ch,
           fg: "white",
@@ -153,25 +162,24 @@ module Terminal
       end
 
       # Render cursor if at end
-      if input_start + @cursor_pos == x && x < optimal_width
+      if input_start + @cursor_pos == x && x < actual_width
         line[x] = Terminal::Cell.new(' ', bg: @input_bg, underline: true)
       end
 
-      result << line
-
-      # Pad remaining lines
-      while result.size < height
-        result << Array.new(width) { Terminal::Cell.new(' ') }
+      (input_start...actual_width).each do |idx|
+        cell = line[idx]
+        next unless cell.bg == "default"
+        line[idx] = Terminal::Cell.new(cell.char, cell.fg, @input_bg, cell.bold, cell.underline)
       end
 
-      result[0...height]
+      result
     end
 
     # Implement required Measurable methods
     def calculate_min_size : Terminal::Geometry::Size
       # Input needs prompt + reasonable input space
       prompt_width = Terminal::TextMeasurement.text_width(@prompt)
-      min_input_width = 10  # Minimum space for input
+      min_input_width = 10 # Minimum space for input
       min_width = prompt_width + min_input_width
       Terminal::Geometry::Size.new(min_width, 1) # Single line widget
     end
@@ -179,7 +187,7 @@ module Terminal
     def calculate_max_size : Terminal::Geometry::Size
       # Input should not be too wide
       prompt_width = Terminal::TextMeasurement.text_width(@prompt)
-      max_input_width = @max_length || 50  # Use max_length or reasonable default
+      max_input_width = @max_length || 50 # Use max_length or reasonable default
       max_width = prompt_width + max_input_width
       Terminal::Geometry::Size.new([max_width, 80].min, 1) # Single line widget
     end

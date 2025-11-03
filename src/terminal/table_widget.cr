@@ -77,18 +77,6 @@ module Terminal
       calculate_min_width
     end
 
-    # Calculate minimum height needed for table content
-    def calculate_min_height : Int32
-      return 3 if @rows.empty? # Header + borders minimum
-
-      # Header + borders + at least one data row
-      header_lines = 1
-      border_lines = 2                 # top and bottom
-      data_lines = [@rows.size, 1].min # At least show one row if data exists
-
-      header_lines + border_lines + data_lines
-    end
-
     # Calculate maximum reasonable height for table
     def calculate_max_height : Int32
       return calculate_min_height if @rows.empty?
@@ -144,7 +132,7 @@ module Terminal
       # Use optimal dimensions - ignore oversized requests
       optimal_width = calculate_min_width
       optimal_height = calculate_min_height
-      
+
       # Use the smaller of requested vs optimal for both dimensions
       actual_width = {width, optimal_width}.min
       actual_height = {height, optimal_height}.min

@@ -145,8 +145,7 @@ describe Terminal::InputWidget do
       grid = input.render(30, 1)
 
       grid.size.should eq(1)
-      # Widget now uses optimal width instead of requested width
-      grid[0].size.should eq(input.calculate_min_width)
+      grid[0].size.should eq(30)
 
       # First few cells should have blue background for prompt
       grid[0][0].bg.should eq("blue")
@@ -157,13 +156,15 @@ describe Terminal::InputWidget do
       input = Terminal::InputWidget.new(
         id: "input1",
         prompt: "> ",
-        value: "hello"
+        value: "hello",
+        input_bg: "yellow"
       )
       grid = input.render(30, 1)
 
       line_text = grid[0].map(&.char).join
       line_text.should contain(">")
       line_text.should contain("hello")
+      grid[0].last.bg.should eq("yellow")
     end
 
     it "shows cursor position with underline" do
@@ -176,9 +177,9 @@ describe Terminal::InputWidget do
 
       grid = input.render(30, 1)
 
-      # Character at cursor should be underlined
-      # Prompt is 2 chars, so cursor at position 1 is at index 2+1=3
-      grid[0][3].underline.should be_true
+      # Prompt is 2 chars; cursor at value index 1 should underline character at prompt + cursor offset
+      cursor_index = 2 + input.cursor_pos
+      grid[0][cursor_index].underline.should be_true
     end
   end
 end

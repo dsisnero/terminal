@@ -55,6 +55,19 @@ module Terminal
               rescue ex
                 STDERR.puts "Dispatcher: compose/send error: #{ex.message}"
               end
+            when Terminal::Msg::KeyPress
+              begin
+                @widget_manager.route_to_focused(msg)
+              rescue ex
+                STDERR.puts "Dispatcher: keypress routing error: #{ex.message}"
+              end
+
+              begin
+                frame = @widget_manager.compose(@width, @height)
+                @buffer_chan.not_nil!.send(Terminal::Msg::ScreenUpdate.new(frame))
+              rescue ex
+                STDERR.puts "Dispatcher: keypress compose error: #{ex.message}"
+              end
             when Terminal::Msg::Command
               case msg.name
               when "focus_next"

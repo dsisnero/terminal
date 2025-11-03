@@ -134,5 +134,29 @@ module Terminal
       # Empty composition should return empty grid
       wm.compose(1, 1).should be_empty
     end
+
+    it "supports global key handlers and focus navigation" do
+      w1 = TestWidget.new("w1")
+      w2 = TestWidget.new("w2")
+      wm = WidgetManager(TestWidget).new([w1, w2])
+
+      triggered = 0
+      wm.register_key_handler("f1") do
+        triggered += 1
+      end
+
+      wm.route_to_focused(Terminal::Msg::InputEvent.new('a', Time::Span.zero))
+
+      wm.route_to_focused(Terminal::Msg::KeyPress.new("tab"))
+      wm.route_to_focused(Terminal::Msg::InputEvent.new('b', Time::Span.zero))
+      w2.content.should eq "b"
+
+      wm.route_to_focused(Terminal::Msg::KeyPress.new("shift+tab"))
+      wm.route_to_focused(Terminal::Msg::InputEvent.new('c', Time::Span.zero))
+      w1.content.should eq "ac"
+
+      wm.route_to_focused(Terminal::Msg::KeyPress.new("f1"))
+      triggered.should eq 1
+    end
   end
 end

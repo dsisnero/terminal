@@ -79,10 +79,12 @@ module Terminal
             @on_select.try &.call(option)
           end
         end
+        @filter = ""
         @expanded = false
       else
         # Expand dropdown
         @expanded = true
+        @filter = ""
         normalize_selection
       end
     end

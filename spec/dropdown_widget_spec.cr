@@ -160,6 +160,19 @@ describe Terminal::DropdownWidget do
       selected_value.should eq("B")
       dropdown.expanded.should be_false
     end
+
+    it "clears filter after confirming selection" do
+      dropdown = Terminal::DropdownWidget.new(
+        id: "dropdown1",
+        options: ["Alpha", "Beta", "Gamma"]
+      )
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+      dropdown.handle(Terminal::Msg::InputEvent.new('a', Time::Span::ZERO))
+      dropdown.filter.should eq("a")
+
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+      dropdown.filter.should eq("")
+    end
   end
 
   describe "#render" do
