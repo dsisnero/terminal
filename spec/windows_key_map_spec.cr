@@ -25,4 +25,9 @@ describe Terminal::WindowsKeyMap do
   it "returns nil for unknown codes" do
     Terminal::WindowsKeyMap.lookup(0_u16).should be_nil
   end
+
+  it "combines modifiers with lookup results" do
+    Terminal::WindowsKeyMap.lookup_with_modifiers(83_u16, ["ctrl", "alt"]).should eq("ctrl+alt+delete")
+    Terminal::WindowsKeyMap.combine("a", ["ctrl", "shift"]).should eq("ctrl+shift+a")
+  end
 end

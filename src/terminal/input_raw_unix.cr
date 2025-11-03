@@ -10,50 +10,30 @@ require "io"
 require "time"
 require "base64"
 require "../terminal/messages"
+require "./tty"
 
 module Terminal
   {% unless flag?(:win32) %}
     class RawInputProvider < InputProvider
-      FD_STDIN   =      0
-      TCSANOW    =      0
-      F_SETFL    =      4
-      O_NONBLOCK = 0x0004
+      DEFAULT_POLL_INTERVAL = 2.milliseconds
 
-      def initialize(@interval_ms : Int32 = 0)
-        @orig = uninitialized LibC::Termios
-        @raw = uninitialized LibC::Termios
+      def initialize(interval_ms : Int32 = 0)
+        @poll_interval = interval_ms > 0 ? interval_ms.milliseconds : DEFAULT_POLL_INTERVAL
       end
 
       def start(out_chan : Channel(Msg::Any))
         spawn do
           begin
-            setup_raw
-            read_loop(out_chan)
+            Terminal::TTY.with_raw_mode(STDIN, non_blocking: true) do
+              read_loop(out_chan)
+            end
           rescue ex : Exception
             begin
               out_chan.send(Msg::Stop.new("raw input error: #{ex.message}"))
             rescue
             end
-          ensure
-            restore
           end
         end
-      end
-
-      # Put tty in raw mode and non-blocking read
-      private def setup_raw
-        # get and save original
-        LibC.tcgetattr(FD_STDIN, pointerof(@orig))
-        @raw = @orig
-        LibC.cfmakeraw(pointerof(@raw))
-        LibC.tcsetattr(FD_STDIN, TCSANOW, pointerof(@raw))
-        # set non-blocking
-        LibC.fcntl(FD_STDIN, F_SETFL, O_NONBLOCK)
-      end
-
-      # Restore saved tty mode
-      private def restore
-        LibC.tcsetattr(FD_STDIN, TCSANOW, pointerof(@orig))
       end
 
       # Minimal non-blocking read loop. For simplicity, this treats any non-bracketed
@@ -64,8 +44,7 @@ module Terminal
         paste_mode = false
         paste_buf = String.new
         loop do
-          # small sleep to avoid spinning
-          ::sleep(Time::Span.new(nanoseconds: 2_000_000))
+          ::sleep(@poll_interval)
           n = STDIN.read(buf)
           if n > 0
             data = String.new(buf[0, n])

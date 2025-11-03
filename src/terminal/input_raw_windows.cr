@@ -12,12 +12,19 @@ module Terminal
     lib WinInput
       fun _kbhit : Int32
       fun _getwch : UInt16
+      fun GetKeyState(vKey : Int32) : Int16
+
+      VK_SHIFT   = 0x10
+      VK_CONTROL = 0x11
+      VK_MENU    = 0x12
     end
 
     class RawInputProvider < InputProvider
-      POLL_SLEEP = 2.milliseconds
+      DEFAULT_POLL_INTERVAL = 2.milliseconds
 
-      def initialize(@interval_ms : Int32 = 0)
+      def initialize(interval_ms : Int32 = 0)
+        @poll_interval = interval_ms > 0 ? interval_ms.milliseconds : DEFAULT_POLL_INTERVAL
+        @pending_surrogate = nil
       end
 
       def start(out_chan : Channel(Msg::Any))
@@ -37,7 +44,7 @@ module Terminal
 
       private def read_loop(out_chan : Channel(Msg::Any))
         loop do
-          ::sleep(POLL_SLEEP)
+          ::sleep(@poll_interval)
           next if WinInput._kbhit == 0
 
           code = WinInput._getwch
@@ -54,8 +61,9 @@ module Terminal
           out_chan.send(Msg::Stop.new("SIGINT"))
           false
         else
-          ch = code.to_i32.chr
-          out_chan.send(Msg::InputEvent.new(ch, Time::Span.zero))
+          if ch = decode_code_unit(code)
+            emit_character(out_chan, ch)
+          end
           true
         end
       end
@@ -63,9 +71,54 @@ module Terminal
       private def handle_extended_prefix(out_chan : Channel(Msg::Any))
         return if WinInput._kbhit == 0
         extended = WinInput._getwch
-        if key = Terminal::WindowsKeyMap.lookup(extended)
+        if key = Terminal::WindowsKeyMap.lookup_with_modifiers(extended, current_modifiers)
           out_chan.send(Msg::KeyPress.new(key))
         end
+      end
+
+      private def decode_code_unit(code : UInt16) : Char?
+        if high_surrogate?(code)
+          @pending_surrogate = code
+          nil
+        elsif low_surrogate?(code) && (pending = @pending_surrogate)
+          pair = StaticArray(UInt16, 2).new { |i| i == 0 ? pending : code }
+          @pending_surrogate = nil
+          String.from_utf16(pair.to_slice)[0]
+        else
+          @pending_surrogate = nil
+          code.to_i32.chr
+        end
+      rescue ArgumentError
+        nil
+      end
+
+      private def high_surrogate?(code : UInt16) : Bool
+        0xD800_u16 <= code && code <= 0xDBFF_u16
+      end
+
+      private def low_surrogate?(code : UInt16) : Bool
+        0xDC00_u16 <= code && code <= 0xDFFF_u16
+      end
+
+      private def emit_character(out_chan : Channel(Msg::Any), ch : Char)
+        modifiers = current_modifiers
+        out_chan.send(Msg::InputEvent.new(ch, Time::Span.zero))
+        unless modifiers.empty?
+          combo = Terminal::WindowsKeyMap.combine(ch.to_s, modifiers)
+          out_chan.send(Msg::KeyPress.new(combo))
+        end
+      end
+
+      private def current_modifiers : Array(String)
+        modifiers = [] of String
+        modifiers << "ctrl" if key_down?(WinInput::VK_CONTROL)
+        modifiers << "alt" if key_down?(WinInput::VK_MENU)
+        modifiers << "shift" if key_down?(WinInput::VK_SHIFT)
+        modifiers
+      end
+
+      private def key_down?(vk : Int32) : Bool
+        (WinInput.GetKeyState(vk) & 0x8000) != 0
       end
     end
   {% end %}

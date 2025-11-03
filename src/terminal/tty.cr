@@ -69,7 +69,8 @@ module Terminal
 
       private def self.with_raw_mode_fd(io : IO::FileDescriptor, non_blocking : Bool, &block)
         if io.tty?
-          handle = Win.GetStdHandle(Win::STD_INPUT_HANDLE)
+          handle = io.fd == 0 ? Win.GetStdHandle(Win::STD_INPUT_HANDLE) : nil
+          return yield unless handle
           mode = uninitialized Win::DWORD
           Win.GetConsoleMode(handle, pointerof(mode))
 

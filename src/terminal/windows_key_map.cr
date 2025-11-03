@@ -29,8 +29,29 @@ module Terminal
       134_u16 => "f12",
     }
 
+    MODIFIER_ORDER = {"ctrl", "alt", "shift"}
+
     def self.lookup(code : UInt16) : String?
       KEY_NAMES[code]?
+    end
+
+    def self.lookup_with_modifiers(code : UInt16, modifiers : Array(String)) : String?
+      base = lookup(code)
+      return unless base
+      combine(base, modifiers)
+    end
+
+    def self.combine(base : String, modifiers : Array(String)) : String
+      return base if modifiers.empty?
+      parts = [] of String
+      MODIFIER_ORDER.each do |name|
+        parts << name if modifiers.includes?(name)
+      end
+      # Preserve any additional modifiers not in the standard ordering.
+      modifiers.each do |name|
+        parts << name unless MODIFIER_ORDER.includes?(name)
+      end
+      (parts << base).join('+')
     end
   end
 end
