@@ -38,6 +38,7 @@ module Terminal
         when Terminal::Msg::InputEvent
           if @expanded && msg.char.ascii_letter?
             @filter += msg.char.to_s
+            normalize_selection
           end
         end
       end
@@ -45,27 +46,44 @@ module Terminal
 
     # Override navigation for dropdown-specific behavior
     def handle_up_key
-      if @expanded && @selected_index > 0
-        @selected_index -= 1
-      end
+      return unless @expanded
+
+      filtered = filtered_options
+      return if filtered.empty?
+
+      current = current_option
+      current_idx = current ? filtered.index(current) : nil
+      target_idx = current_idx ? [current_idx - 1, 0].max : 0
+      new_option = filtered[target_idx]
+      update_selected_index(new_option)
     end
 
     def handle_down_key
-      if @expanded && @selected_index < filtered_options.size - 1
-        @selected_index += 1
-      end
+      return unless @expanded
+
+      filtered = filtered_options
+      return if filtered.empty?
+
+      current = current_option
+      current_idx = current ? filtered.index(current) : nil
+      target_idx = current_idx ? [current_idx + 1, filtered.size - 1].min : 0
+      new_option = filtered[target_idx]
+      update_selected_index(new_option)
     end
 
     def handle_enter_key
       if @expanded
-        # Select current item
-        if current_option = filtered_options[@selected_index]?
-          @on_select.try &.call(current_option)
+        filtered = filtered_options
+        unless filtered.empty?
+          if option = current_option
+            @on_select.try &.call(option)
+          end
         end
         @expanded = false
       else
         # Expand dropdown
         @expanded = true
+        normalize_selection
       end
     end
 
@@ -79,15 +97,41 @@ module Terminal
       when "backspace"
         if @expanded && !@filter.empty?
           @filter = @filter[0...-1]
+          normalize_selection
         end
       end
     end
 
+    private def current_option : String?
+      @options[@selected_index]?
+    end
+
     private def filtered_options : Array(String)
-      if @filter.empty?
-        @options
-      else
-        @options.select(&.downcase.includes?(@filter.downcase))
+      options = if @filter.empty?
+                  @options
+                else
+                  @options.select(&.downcase.includes?(@filter.downcase))
+                end
+      adjust_selection(options)
+      options
+    end
+
+    private def adjust_selection(filtered : Array(String))
+      if filtered.empty?
+        @selected_index = 0
+        return
+      end
+
+      if (current = current_option) && filtered.includes?(current)
+        return
+      end
+
+      update_selected_index(filtered.first)
+    end
+
+    private def update_selected_index(option : String)
+      if idx = @options.index(option)
+        @selected_index = idx
       end
     end
 
@@ -146,7 +190,7 @@ module Terminal
 
         filtered.each_with_index do |option, idx|
           break if idx >= max_visible
-          option_line = render_option_line(option, idx == @selected_index, optimal_width)
+          option_line = render_option_line(option, option == current_option, optimal_width)
           result << option_line
         end
 
@@ -198,12 +242,16 @@ module Terminal
       line
     end
 
+    private def normalize_selection
+      filtered_options
+    end
+
     # Implement required Measurable methods
     def calculate_min_size : Terminal::Geometry::Size
       Terminal::Geometry::Size.new(calculate_min_width, calculate_min_height)
     end
 
-    def calculate_max_size : Terminal::Geometry::Size  
+    def calculate_max_size : Terminal::Geometry::Size
       Terminal::Geometry::Size.new(calculate_max_width, calculate_max_height)
     end
   end

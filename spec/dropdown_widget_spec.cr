@@ -97,11 +97,52 @@ describe Terminal::DropdownWidget do
       dropdown.handle(Terminal::Msg::KeyPress.new("enter")) # Expand
 
       dropdown.handle(Terminal::Msg::InputEvent.new('a', Time::Span::ZERO))
-      dropdown.filter.should eq("a")
+      dropdown.handle(Terminal::Msg::InputEvent.new('p', Time::Span::ZERO))
+      dropdown.filter.should eq("ap")
 
       # Rendering should show filtered results
       grid = dropdown.render(30, 10)
       # Should show Apple and Apricot, not Banana/Cherry
+      lines = grid.map(&.map(&.char).join)
+      lines.any?(&.includes?("Apple")).should be_true
+      lines.any?(&.includes?("Apricot")).should be_true
+      lines.any?(&.includes?("Banana")).should be_false
+      lines.any?(&.includes?("Cherry")).should be_false
+    end
+
+    it "clamps selection to filtered options" do
+      dropdown = Terminal::DropdownWidget.new(
+        id: "dropdown1",
+        options: ["Apple", "Banana", "Cherry"],
+        selected_index: 2
+      )
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+      dropdown.handle(Terminal::Msg::InputEvent.new('a', Time::Span::ZERO))
+
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+
+      dropdown.expanded.should be_false
+      dropdown.selected_index.should eq(0)
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+      grid = dropdown.render(30, 10)
+      lines = grid.map(&.map(&.char).join)
+      lines.first.should contain("Apple")
+    end
+
+    it "navigates filtered list using arrow keys" do
+      dropdown = Terminal::DropdownWidget.new(
+        id: "dropdown1",
+        options: ["Alpha", "Beta", "Gamma", "Delta"],
+        selected_index: 1
+      )
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+      dropdown.handle(Terminal::Msg::InputEvent.new('a', Time::Span::ZERO))
+
+      dropdown.handle(Terminal::Msg::KeyPress.new("down"))
+      dropdown.handle(Terminal::Msg::KeyPress.new("enter"))
+
+      dropdown.expanded.should be_false
+      dropdown.selected_index.should eq(dropdown.options.index("Gamma"))
     end
 
     it "calls on_select callback when selecting" do
@@ -148,7 +189,7 @@ describe Terminal::DropdownWidget do
       grid = dropdown.render(30, 10)
 
       # Should have prompt + 3 options (widget uses optimal height)
-      grid.size.should eq(4)  # 1 prompt + 3 options
+      grid.size.should eq(4) # 1 prompt + 3 options
 
       # Check that options appear
       lines_text = grid.map(&.map(&.char).join)
