@@ -42,7 +42,7 @@ shards install
 ```crystal
 require "terminal"
 
-app = Terminal.app(width: 80, height: 20) do |ui|
+Terminal.run(width: 80, height: 20) do |ui|
   ui.layout do |layout|
     layout.vertical do
       layout.widget "header", Terminal::UI::Constraint.length(3)
@@ -70,13 +70,6 @@ app = Terminal.app(width: 80, height: 20) do |ui|
     ])
   end
 end
-
-spawn do
-  sleep 5.seconds
-  app.stop
-end
-
-app.start
 ```
 
 ### Chat Application Helper
@@ -120,10 +113,11 @@ end
 
 ## Documentation
 
-- **[DSL Usage Guide](DSL_USAGE_GUIDE.md)** - Complete documentation with examples
-- **[Enhanced DSL Demo](examples/enhanced_dsl_demo.cr)** - Working example code
-- **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** - Architecture overview
-- **[Windows Dev Box Setup](docs/windows_devbox_setup.md)** - Provision a cloud VM for Windows-specific testing
+- **[UI Builder Guide](DSL_USAGE_GUIDE.md)** – Layout constraints, widget mounting, and event hooks
+- **[Layout System Summary](LAYOUT_SYSTEM_SUMMARY.md)** – Deep dive into the layout resolver and geometry helpers
+- **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** – Actor pipeline and rendering overview
+- **[Windows Dev Box Setup](docs/windows_devbox_setup.md)** – Provision a cloud VM for Windows-specific testing
+- **[Rendering Guidelines](RENDERING_GUIDELINES.md)** – Widget sizing, borders, and lifecycle conventions
 
 ## Low-Level API
 

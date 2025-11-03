@@ -3,6 +3,7 @@
 
 require "spec"
 require "../src/terminal"
+require "../src/spec_support/runtime_helper"
 
 # Helper for rendering grids to strings (for testing)
 module SpecHelper

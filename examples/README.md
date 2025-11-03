@@ -12,43 +12,21 @@ Shows simple usage of each widget type with automatic content-based sizing.
 
 ### Comprehensive Demo
 ```bash
-crystal run examples/comprehensive_demo.cr  
+crystal run examples/comprehensive_demo.cr
 ```
-Demonstrates all features including content-based sizing, accessibility, and performance improvements.
+Demonstrates the widget APIs and content-based sizing in a non-interactive walkthrough.
 
-## Interactive Examples
+## Interactive Example
 
-### Accessible Form Demo
+### Interactive Builder Demo
 ```bash
-crystal build examples/interactive_accessible_form.cr -o interactive_accessible_form
-./interactive_accessible_form
+crystal run examples/interactive_builder_demo.cr
 ```
-- **Navigation**: Tab between fields, Enter to submit, ESC to exit
-- **Features**: Real keyboard navigation, content-based sizing, high contrast colors
-- **Accessibility**: Colorblind-friendly, screen reader compatible
-
-### Accessible Table Demo  
-```bash
-crystal build examples/simple_accessible_table.cr -o simple_accessible_table
-./simple_accessible_table
-```
-- **Navigation**: Arrow keys to navigate rows, ESC to exit
-- **Features**: Row highlighting, content-based width, proper terminal restoration
-- **Accessibility**: High contrast, no color dependencies
+- **Navigation**: Type messages, press Enter. Use `/quit` or press `Esc` to exit.
+- **Features**: Built entirely with `Terminal.run`, shows live logging, global key handler, and input submission callbacks.
+- **Notes**: Runs the real event loop; no manual `stty` shenanigans required.
 
 ## Static Examples
-
-### Form Demo
-```bash
-crystal run examples/form_demo.cr
-```
-Shows various form widgets, validation, and interaction patterns.
-
-### Table Demo
-```bash
-crystal run examples/table_demo.cr
-```
-Interactive table with sorting and navigation (press ESC to exit).
 
 ### Simple Examples
 ```bash

@@ -111,6 +111,6 @@ puts "✓ Keyboard navigation (Tab, arrows, Enter, ESC)"
 puts "✓ Proper terminal state management"
 puts
 puts "Next Steps:"
-puts "• Try the interactive demos: ./interactive_accessible_form"
+puts "• Try the interactive demo: crystal run examples/interactive_builder_demo.cr"
 puts "• See comprehensive_demo.cr for advanced examples"
 puts "• Check the API documentation for all widget options"

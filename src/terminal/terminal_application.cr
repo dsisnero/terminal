@@ -70,5 +70,13 @@ module Terminal
     def service_provider : ServiceProvider
       @service_provider
     end
+
+    def message_channel : Channel(Terminal::Msg::Any)
+      @event_loop.main_channel
+    end
+
+    def dispatch(msg : Terminal::Msg::Any)
+      @event_loop.dispatch(msg)
+    end
   end
 end

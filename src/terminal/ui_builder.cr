@@ -12,10 +12,10 @@ require "./terminal_application"
 
 module Terminal
   # Convenience entrypoint
-  def self.app(width : Int32 = 80, height : Int32 = 24, &block : UI::Builder -> Nil) : TerminalApplication(Widget)
+  def self.app(width : Int32 = 80, height : Int32 = 24, io : IO = STDOUT, input_provider : Terminal::InputProvider? = nil, &block : UI::Builder -> Nil) : TerminalApplication(Widget)
     builder = UI::Builder.new(width, height)
     block.call(builder)
-    builder.build
+    builder.build(io: io, input_provider: input_provider)
   end
 
   module UI
@@ -62,6 +62,9 @@ module Terminal
 
       def mount(id : String | Symbol, widget : Terminal::Widget)
         key = normalize_id(id)
+        if @widgets.has_key?(key)
+          raise ArgumentError.new("Widget id '#{key}' already registered")
+        end
         @widgets[key] = widget
       end
 
@@ -113,7 +116,7 @@ module Terminal
         @on_stop = block
       end
 
-      def build : TerminalApplication(Terminal::Widget)
+      def build(io : IO = STDOUT, input_provider : Terminal::InputProvider? = nil) : TerminalApplication(Terminal::Widget)
         ensure_layout_covers_widgets
 
         manager = WidgetManager(Terminal::Widget).new(@widgets, @layout_root)
@@ -123,6 +126,8 @@ module Terminal
 
         app = TerminalApplication(Terminal::Widget).new(
           widget_manager: manager,
+          io: io,
+          input_provider: input_provider,
           width: @width,
           height: @height
         )
@@ -139,10 +144,26 @@ module Terminal
             @layout_root.add_child(LayoutNode.new(Constraint.flex, nil, widget_id))
           end
           leaf_ids = @layout_root.leaf_ids
+        else
+          duplicates = leaf_ids.group_by(&.itself).select { |_, items| items.size > 1 }.keys
+          unless duplicates.empty?
+            raise ArgumentError.new("Layout defines duplicate widget ids: #{duplicates.join(", ")}")
+          end
         end
 
         missing = @widgets.keys - leaf_ids
-        missing.each { |widget_id| @layout_root.add_child(LayoutNode.new(Constraint.flex, nil, widget_id)) }
+        if leaf_ids.empty?
+          missing.each { |widget_id| @layout_root.add_child(LayoutNode.new(Constraint.flex, nil, widget_id)) }
+        else
+          unless missing.empty?
+            raise ArgumentError.new("Layout does not declare widgets: #{missing.join(", ")}")
+          end
+
+          extra = leaf_ids - @widgets.keys
+          unless extra.empty?
+            raise ArgumentError.new("Layout references unknown widgets: #{extra.join(", ")}")
+          end
+        end
       end
 
       private def attach_input_handlers

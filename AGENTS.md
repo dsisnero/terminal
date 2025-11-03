@@ -1,213 +1,29 @@
-# AGENTS.md - AI Coding Assistant Guide for Terminal Library
+# AGENTS.md — Terminal Library Assistant Guide
 
-## Agent Behavior
+## Workflow Guardrails
+- Always run `crystal tool format`, `ameba`, and `crystal spec` before proposing commits; escalate permissions for specs when the sandbox blocks process execution.
+- Never restore legacy demos (`examples/enhanced_dsl_demo.cr`, `examples/elegant_chat_demo.cr`); the new builder demos will replace them later.
+- Respect cross-platform abstractions (TTY adapters, input providers, Windows key map). Do not introduce UNIX-only code paths.
+- Keep edits focused: update only the files relevant to the task and avoid regressing staged work the user already prepared.
 
-When working on this terminal library codebase:
+## Preferred APIs & Patterns
+- For interactive TUIs prefer `Terminal.run(width: 80, height: 24) { |ui| ... }`, which keeps the app alive, wires Ctrl+C by default, and still returns the application when it stops. Follow the practices listed in `RENDERING_GUIDELINES.md` when wiring shutdown hooks or drawing borders.
+- Use the **UI builder** entry point: `Terminal.app(width: 80, height: 24) { |ui| ... }` when you need to compose widgets without booting the full lifecycle helper (e.g., in tests or tooling).
+  - Compose layouts with `ui.layout { |layout| layout.vertical { ... } }` and `Terminal::UI::Constraint` helpers (`percent`, `length`, `flex`).
+  - Mount widgets via `ui.text_box`, `ui.table`, `ui.input`, `ui.spinner`, or `ui.mount` for custom widgets.
+  - Register behavior with `ui.on_input("widget_id") { |value| ... }`, `ui.on_key(:escape) { app.stop }`, and `ui.every(250.milliseconds) { ... }` for tickers.
+- Widgets should rely on `include Terminal::Widget` helpers for wrapping, borders, and focus. New widgets must expose `id`, `handle`, and `render`, and honour `can_focus` when focus is not applicable.
+- Use the shared styling utilities (`Terminal::ColorDSL`, `Terminal::TextMeasurement`) to keep rendering consistent.
 
-- **Use Enhanced DSL** - Always prefer the new DSL over low-level APIs
-- **Run tests** after changes: `crystal spec` or specific spec files
-- **Check build** after changes: `crystal build src/terminal.cr`
-- **Format code**: `crystal tool format`
-- **Reference documentation**: Check `DSL_USAGE_GUIDE.md` for DSL patterns
+## Layout, Focus & Key Handling
+- The `WidgetManager` now cycles focus with Tab / Shift+Tab automatically and supports global key handlers. Register app-level shortcuts through the builder (`ui.on_key(:f1) { ... }`).
+- Compose screens by letting `WidgetManager` render into the layout rectangles returned from `Terminal::UI::LayoutResolver`.
+- When extending focus behaviour, prefer overriding the navigation hooks in `Terminal::Widget` (`handle_up_key`, `handle_enter_key`, etc.) instead of duplicating key parsing.
 
-## Enhanced DSL Guidelines for Agents
+## Prompts & Synchronous Utilities
+- For simple CLI scripts, use `Terminal::Prompts.ask` and `Terminal::Prompts.password`. They share the same cross-platform TTY adapter used by widgets, so masking and terminal restoration are consistent.
 
-### ✅ ALWAYS Use Enhanced DSL
-
-When creating terminal applications, **ALWAYS** use the Enhanced DSL:
-
-```crystal
-# ✅ Correct - Use Enhanced DSL
-app = Terminal.application(80, 24) do |builder|
-  builder.layout :four_quadrant do |layout|
-    if layout.is_a?(Terminal::ApplicationDSL::FourQuadrantLayout)
-      layout.top_left("main")
-    end
-  end
-  builder.text_widget("main") { |t| t.content("Hello") }
-end
-
-# ✅ Correct - Use Chat Convenience DSL
-app = Terminal.chat_application("Chat") do |chat|
-  chat.chat_area { |a| a.content("Welcome") }
-  chat.input_area { |i| i.prompt("You: ") }
-end
-```
-
-### ❌ DON'T Use Low-Level APIs
-
-```crystal
-# ❌ Wrong - Don't use low-level APIs
-widget = Terminal::BasicWidget.new("id", "content")
-manager = Terminal::WidgetManager.new([widget])
-# This bypasses the Enhanced DSL benefits
-```
-
-### Required Patterns for DSL
-
-1. **Always include terminal library**:
-   ```crystal
-   require "terminal"  # or require "../src/terminal"
-   ```
-
-2. **Use type checking for layouts**:
-   ```crystal
-   builder.layout :four_quadrant do |layout|
-     if layout.is_a?(Terminal::ApplicationDSL::FourQuadrantLayout)
-       # Use layout methods here
-     end
-   end
-   ```
-
-3. **Create widgets for all areas**:
-   ```crystal
-   layout.top_left("main")
-   builder.text_widget("main") { |t| t.content("Content") }
-   ```
-
-4. **Handle events properly**:
-   ```crystal
-   builder.on_input("input") { |text| puts text }
-   builder.on_key(:escape) { app.stop }
-   ```
-
-## Commands
-
-- **Test DSL**: `crystal spec spec/application_dsl_spec.cr`
-- **Test convenience**: `crystal spec spec/dsl_convenience_spec.cr`
-- **Test integration**: `crystal spec spec/enhanced_dsl_integration_spec.cr`
-- **Test all**: `crystal spec`
-- **Build library**: `crystal build src/terminal.cr`
-- **Run demo**: `crystal run examples/enhanced_dsl_demo.cr`
-- **Format code**: `crystal tool format`
-
-### Language & Version
-
-- **Language**: Crystal (>= 1.17.1)
-- **Project Name**: Terminal UI Library
-- **DSL Architecture**: Message-driven actors (EventLoop, ScreenBuffer, DiffRenderer)
-
-## Code Style for DSL
-
-- **Layout First**: Always define layout before widgets
-- **Type Safety**: Use `is_a?()` checks for layout builders
-- **Widget Matching**: Create widgets for all defined layout areas
-- **Event Handling**: Always provide escape/quit mechanisms
-- **Naming**: Use descriptive area names like "chat", "status", "input"
-
-### DSL Conventions
-
-```crystal
-# ✅ Good DSL patterns
-Terminal.chat_application("App Name") do |chat|
-  chat.chat_area { |area| area.title("💬 Chat") }
-  chat.input_area { |input| input.prompt("User: ") }
-  chat.on_user_input { |text| handle_input(text) }
-  chat.on_key(:escape) { app.stop }
-end
-
-# ✅ Good custom layout
-Terminal.application(80, 24) do |builder|
-  builder.layout :four_quadrant do |layout|
-    if layout.is_a?(Terminal::ApplicationDSL::FourQuadrantLayout)
-      layout.top_left("main", 70, 80)
-      layout.bottom_full("input", 3)
-    end
-  end
-
-  builder.text_widget("main") do |text|
-    text.content("Content")
-    text.title("📝 Title")
-    text.auto_scroll(true)
-  end
-
-  builder.input_widget("input") do |input|
-    input.prompt("Command: ")
-  end
-end
-```
-
-### Error Prevention for Agents
-
-**❌ Don't do this:**
-```crystal
-# Missing type check - will fail
-builder.layout :four_quadrant do |layout|
-  layout.top_left("main")  # Compile error
-end
-
-# Missing widget - runtime error
-layout.top_left("main")
-# No builder.text_widget("main")
-
-# Manual output - breaks architecture
-puts "output"  # Causes flickering
-```
-
-**✅ Do this:**
-```crystal
-# Proper type checking
-if layout.is_a?(Terminal::ApplicationDSL::FourQuadrantLayout)
-  layout.top_left("main")
-end
-
-# Widget for every area
-builder.text_widget("main") { |t| t.content("Content") }
-
-# Use DSL for output
-builder.text_widget("output") { |t| t.content("Message") }
-```
-
-## Testing DSL Code
-
-Always test DSL implementations:
-
-```crystal
-describe "My DSL Usage" do
-  it "creates application correctly" do
-    app = Terminal.application(80, 24) do |builder|
-      # Your DSL code here
-    end
-
-    app.should be_a(Terminal::TerminalApplication(Terminal::Widget))
-  end
-end
-```
-
-## Integration with Other Projects
-
-When integrating this terminal library into other projects (like Clarity2):
-
-1. **Add dependency** to `shard.yml`:
-   ```yaml
-   dependencies:
-     terminal:
-       github: dsisnero/terminal
-   ```
-
-2. **Use Enhanced DSL patterns**:
-   ```crystal
-   require "terminal"
-
-   app = Terminal.chat_application("Clarity AI") do |chat|
-     # Configure chat interface
-   end
-   ```
-
-3. **Follow agent guidelines** from this AGENTS.md file
-
-## Documentation References
-
-- **[DSL Usage Guide](DSL_USAGE_GUIDE.md)** - Complete DSL documentation
-- **[Enhanced DSL Demo](examples/enhanced_dsl_demo.cr)** - Working examples
-- **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** - Architecture details
-
-## Recent Major Accomplishments
-
-- ✅ Enhanced DSL with layout-focused approach (:four_quadrant, etc.)
-- ✅ Generic area methods (top_left, bottom_right, etc.)
-- ✅ Full architecture integration (EventLoop, ScreenBuffer, DiffRenderer)
-- ✅ Convenience methods (Terminal.chat_application)
-- ✅ Comprehensive testing (27 specs passing)
-- ✅ Type-safe builders and proper error prevention
-- ✅ Complete documentation and examples
+## Testing & Reference Material
+- Specs live under `spec/`; prefer focused specs per widget (`spec/input_widget_spec.cr`, `spec/text_box_widget_spec.cr`, etc.). Add regression coverage when fixing bugs.
+- Helpful references: `README.md` (quick start + builder overview), `plan.md` (roadmap), `LAYOUT_SYSTEM_SUMMARY.md` (layout engine), `TERMINAL_ARCHITECTURE.md` (actor pipeline).
+- Keep documentation in sync with behaviour changes, especially when updating the builder API or widget contracts.

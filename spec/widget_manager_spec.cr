@@ -8,6 +8,9 @@ module Terminal
 
     getter id : String
     property content = ""
+    property last_key : String?
+    property focus_events = 0
+    property blur_events = 0
 
     def initialize(@id : String); end
 
@@ -20,6 +23,8 @@ module Terminal
         when "clear"
           @content = ""
         end
+      when Terminal::Msg::KeyPress
+        @last_key = msg.key
       end
     end
 
@@ -27,6 +32,16 @@ module Terminal
       inner_width = inner_dimensions(width, height)[0]
       content_lines = wrap_content(@content, inner_width)
       create_bordered_grid(width, height, content_lines)
+    end
+
+    def focus
+      super
+      @focus_events += 1
+    end
+
+    def blur
+      super
+      @blur_events += 1
     end
   end
 
@@ -157,6 +172,36 @@ module Terminal
 
       wm.route_to_focused(Terminal::Msg::KeyPress.new("f1"))
       triggered.should eq 1
+      w1.last_key.should be_nil
+
+      triggered = 0
+      wm.register_key_handler("enter", consume: false) do
+        triggered += 1
+      end
+
+      wm.route_to_focused(Terminal::Msg::KeyPress.new("enter"))
+      triggered.should eq 1
+      w1.last_key.should eq "enter"
+    end
+
+    it "skips non focusable widgets when cycling focus" do
+      w1 = TestWidget.new("focus")
+      w2 = TestWidget.new("passive")
+      w2.can_focus = false
+
+      wm = WidgetManager(TestWidget).new([w1, w2])
+
+      wm.route_to_focused(Terminal::Msg::InputEvent.new('x', Time::Span.zero))
+      w1.content.should eq "x"
+      w1.focus_events.should eq 1
+      w2.focus_events.should eq 0
+
+      wm.focus_next
+      wm.route_to_focused(Terminal::Msg::InputEvent.new('y', Time::Span.zero))
+
+      w1.content.should eq "xy"
+      w1.focus_events.should eq 2
+      w2.focus_events.should eq 0
     end
   end
 end

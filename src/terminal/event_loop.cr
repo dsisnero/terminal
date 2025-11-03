@@ -165,5 +165,14 @@ module Terminal
     rescue ex : Exception
       STDERR.puts "EventLoop cleanup error: #{ex.message}"
     end
+
+    def main_channel : Channel(Msg::Any)
+      @main_chan
+    end
+
+    def dispatch(msg : Msg::Any)
+      @main_chan.send(msg)
+    rescue
+    end
   end
 end

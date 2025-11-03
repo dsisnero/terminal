@@ -73,8 +73,7 @@ grid = widget.render(100, 20)  # May only use 30 characters width
 - Works well with high contrast themes and screen readers
 
 ## Interactive Demos Updated
-- `./interactive_accessible_form` - Form with proper tab navigation and content sizing
-- `./simple_accessible_table` - Table with arrow navigation and content sizing
+- `crystal run examples/interactive_builder_demo.cr` - Interactive builder demo powered by `Terminal.run` with live log updates
 - Both demos now show widgets at appropriate sizes instead of full-screen width
 
 This resolves the original issue: "both still are maximized to screen width"

@@ -10,12 +10,14 @@
 - ScreenBuffer with diff computation
 - DiffRenderer with ANSI output, bracketed paste toggle, OSC 52 copy
 - CursorManager for cursor operations
-- WidgetManager with BasicWidget implementation
+- WidgetManager with focus management, global key handlers, and layout-aware composition
+- UI layout system (`Terminal::UI::LayoutNode`, resolver) and high-level builder (`Terminal.app`)
+- Lifecycle helper (`Terminal.run`) providing default Ctrl+C / escape shutdown without custom boilerplate
 - EventLoop for fiber management with optional ticker
-- Dispatcher for message routing and render ticks
+- Dispatcher for message routing and render ticks (now handles key events directly)
 - Input providers: Dummy, Raw (Unix), Raw (Windows with VT mode, key mapping, modifier support); `InputProvider.default`
 - Color DSL helpers (`color_dsl.cr`) included in `Widget`
-- Widgets: SpinnerWidget, TableWidget (DSL, colors, sort arrows)
+- Widgets: InputWidget, TextBoxWidget, DropdownWidget, SpinnerWidget, TableWidget (colors, sort arrows)
 
 **✅ Test Coverage:**
 - Cell operations (unit tests)
@@ -24,20 +26,23 @@
 - CursorManager commands (unit tests)
 - Widget event routing (integration tests)
 - Full integration pipeline (integration tests)
-- Spinner and Table widget specs
+- Input, TextBox, Dropdown, Spinner, and Table widget specs
 - ServiceContainer specs
 - Prompt helper coverage and Windows key map specs
-- **All 134 specs passing successfully**
+- **All 245 specs passing successfully**
 
 **🔧 Recent Fixes:**
 - Replaced deprecated sleep calls with Time::Span
 - Fixed EventLoop wiring, ScreenBuffer API, WaitGroup behavior
 - Added bracketed paste parsing and OSC 52 clipboard support
+- WidgetManager focus cycle, global key handler registration, and key dispatch wiring in Dispatcher
+- InputWidget width handling + background fill, TextBoxWidget scroll/state fixes, Dropdown filter reset
 - Resolved TableWidget header truncation and ColorDSL constant visibility
+- Added channel-based lifecycle wiring (`Terminal.run`, signal forwarding, escape defaults)
 
 **📋 Next Priority Tasks:**
-- [ ] Add a small demo executable target (optional) for showcase
-- [ ] Layout/composition for multiple widgets on screen
+- [x] Author end-to-end builder spec covering Terminal.app → Dispatcher → ScreenBuffer pipeline
+- [x] Document cohesive rendering plan (`plan/fix_cohesiveness.md`, `RENDERING_GUIDELINES.md`) and align README/usage guides
 - [ ] Supervisor for actor failures and restart policies
 - [ ] CI/CD extensions (benchmarks, lint gate, Windows smoke tests beyond specs)
 
@@ -49,12 +54,13 @@
 - ✅ ScreenBuffer with diff computation
 - ✅ DiffRenderer with ANSI output + OSC52 + paste toggle
 - ✅ CursorManager for cursor operations
-- ✅ WidgetManager with BasicWidget implementation
+- ✅ WidgetManager with focus + layout composition
 - ✅ EventLoop for fiber management + ticker
 - ✅ Dispatcher for message routing + tick handling
 - ✅ Input providers: Dummy, Raw (Unix), Windows VT stub
-- ✅ ColorDSL, SpinnerWidget, TableWidget
-- ✅ Full test suite (36 tests passing)
+- ✅ ColorDSL, InputWidget, TextBoxWidget, DropdownWidget, SpinnerWidget, TableWidget
+- ✅ UI builder and layout DSL (`Terminal.app`, constraints)
+- ✅ Full test suite (245 specs passing)
 
 **🔄 IN PROGRESS:**
 - 🔄 Demo application (example binary) — optional

@@ -25,10 +25,10 @@ end
 # Demonstrate all widgets with content-based sizing
 def widget_sizing_demo
   separator("WIDGET CONTENT-BASED SIZING DEMO")
-  
+
   puts "All widgets now size to their content instead of taking full screen width:"
   puts
-  
+
   # TableWidget example
   puts "1. TableWidget (Content-Based Width):"
   table = Terminal::TableWidget.new("demo_table")
@@ -39,15 +39,15 @@ def widget_sizing_demo
       {"name" => "Alice", "age" => "28", "city" => "NYC"},
       {"name" => "Bob", "age" => "35", "city" => "SF"},
     ])
-  
+
   puts "  Min width: #{table.calculate_min_width} chars (columns + borders)"
   puts "  Rendered width: #{table.render(100, 10).first.size} chars"
   puts "  Content-based sizing: ✓"
   puts
-  
+
   grid = table.render(100, 8)
   render_grid(grid)
-  
+
   puts
   puts "2. FormWidget (Content-Based Width):"
   form = Terminal::FormWidget.new("demo_form", title: "Registration")
@@ -63,15 +63,15 @@ def widget_sizing_demo
     label: "Country",
     options: ["United States", "Canada", "United Kingdom"]
   ))
-  
+
   puts "  Min width: #{form.calculate_min_width} chars (labels + controls)"
-  puts "  Rendered width: #{form.render(100, 15).first.size} chars" 
+  puts "  Rendered width: #{form.render(100, 15).first.size} chars"
   puts "  Content-based sizing: ✓"
   puts
-  
+
   grid = form.render(100, 12)
   render_grid(grid)
-  
+
   puts
   puts "3. DropdownWidget (Content-Based Width):"
   dropdown = Terminal::DropdownWidget.new(
@@ -79,31 +79,31 @@ def widget_sizing_demo
     ["Short", "Medium Length", "Very Long Option Name Here"],
     "Select option:"
   )
-  
+
   puts "  Min width: #{dropdown.calculate_min_width} chars (prompt + longest option)"
   puts "  Rendered width: #{dropdown.render(100, 8).first.size} chars"
   puts "  Content-based sizing: ✓"
   puts
-  
+
   grid = dropdown.render(100, 5)
   render_grid(grid)
-  
+
   puts
   puts "4. InputWidget (Content-Based Width):"
   input = Terminal::InputWidget.new("demo_input", "Username:", max_length: 25)
-  
+
   puts "  Min width: #{input.calculate_min_width} chars (prompt + input field)"
   puts "  Rendered width: #{input.render(100, 5).first.size} chars"
   puts "  Content-based sizing: ✓"
   puts
-  
+
   grid = input.render(100, 3)
   render_grid(grid)
 end
 
 def accessibility_demo
   separator("ACCESSIBILITY FEATURES DEMO")
-  
+
   puts "All widgets include accessibility enhancements:"
   puts "• High contrast white text on dark backgrounds"
   puts "• Colorblind-friendly (no red/green dependencies)"
@@ -111,7 +111,7 @@ def accessibility_demo
   puts "• Screen reader friendly labels and indicators"
   puts "• Terminal state restoration on exit"
   puts
-  
+
   # Show accessible table with navigation
   puts "Accessible Table with Navigation:"
   sample_data = [
@@ -119,23 +119,23 @@ def accessibility_demo
     {"name" => "Bob Smith", "role" => "Manager", "status" => "Active"},
     {"name" => "Carol Davis", "role" => "Designer", "status" => "Away"},
   ]
-  
+
   table = Terminal::TableWidget.new("accessible_table")
     .col("Name", :name, 15, :left, :white)
     .col("Role", :role, 12, :left, :white)
     .col("Status", :status, 8, :left, :white)
     .rows(sample_data)
-    
-  table.focus  # Enable navigation
-  
+
+  table.focus # Enable navigation
+
   puts "• Arrow key navigation enabled"
   puts "• White text for high contrast"
   puts "• Content-sized: #{table.calculate_min_width} chars"
   puts
-  
+
   grid = table.render(100, 8)
   render_grid(grid)
-  
+
   puts
   puts "Navigation Commands:"
   puts "• ↑↓ Arrow keys: Navigate table rows"
@@ -147,10 +147,10 @@ end
 
 def performance_demo
   separator("PERFORMANCE & EFFICIENCY DEMO")
-  
+
   puts "Content-based sizing improves performance and user experience:"
   puts
-  
+
   # Compare old vs new sizing
   puts "Width Usage Comparison:"
   puts "                     Old (Full Screen)  New (Content-Based)  Savings"
@@ -169,24 +169,13 @@ end
 
 def interactive_demos_info
   separator("INTERACTIVE DEMOS AVAILABLE")
-  
+
   puts "Ready-to-use interactive demos with full functionality:"
   puts
-  puts "1. ./interactive_accessible_form"
-  puts "   • Real tab navigation between form fields"
-  puts "   • Content-based form sizing"
-  puts "   • High contrast accessibility colors"
-  puts "   • Proper terminal state restoration"
-  puts
-  puts "2. ./simple_accessible_table"
-  puts "   • Arrow key navigation with row highlighting"
-  puts "   • Content-based table sizing" 
-  puts "   • Colorblind-friendly design"
-  puts "   • Clean exit handling"
-  puts
-  puts "Build and run these demos:"
-  puts "  crystal build examples/interactive_accessible_form.cr -o interactive_accessible_form"
-  puts "  crystal build examples/simple_accessible_table.cr -o simple_accessible_table"
+  puts "1. crystal run examples/interactive_builder_demo.cr"
+  puts "   • Built with Terminal.run + UI builder"
+  puts "   • Enter to submit messages, `/quit` or Esc to exit"
+  puts "   • Demonstrates live log updates"
 end
 
 # Run all demos
@@ -203,7 +192,7 @@ interactive_demos_info
 puts
 separator("DEMO COMPLETED")
 puts "✓ All widgets demonstrate content-based sizing"
-puts "✓ Accessibility features working correctly"  
+puts "✓ Accessibility features working correctly"
 puts "✓ Performance improvements achieved"
 puts "✓ Interactive demos ready for use"
 puts
