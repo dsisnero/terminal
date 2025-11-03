@@ -1,15 +1,14 @@
 # Terminal UI Library (Crystal)
 
-An async terminal UI toolkit for Crystal with a clean actor-based architecture (channels + fibers), SOLID design, and an **Enhanced DSL** for building terminal applications.
+An async terminal UI toolkit for Crystal with a clean actor-based architecture (channels + fibers), SOLID design, and a modern **UI builder** for composing layouts in seconds.
 
-## 🚀 Enhanced DSL Features
+## 🚀 UI Builder Highlights
 
-- **Layout-focused DSL** with `:four_quadrant`, `:grid`, `:vertical`, `:horizontal` layouts
-- **Generic area methods** like `layout.top_left()`, `layout.bottom_right()`
-- **Convenience methods** like `Terminal.chat_application()` for common patterns
-- **Full architecture integration** (EventLoop, ScreenBuffer, DiffRenderer)
-- **Type-safe builders** for widgets and layouts
-- **Ruby-style blocks** for elegant configuration
+- **Declarative layout tree**: nest `horizontal` / `vertical` blocks with `%`, `length`, or `flex` constraints.
+- **Mount widgets by id** (`ui.text_box "logs"`, `ui.table "data"`) with builder-style configuration.
+- **Focus-aware routing**: widgets receive `focus` / `blur`, navigation handled centrally.
+- **Full architecture integration** (EventLoop, ScreenBuffer, DiffRenderer) out of the box.
+- **Synchronous prompts** for quick CLI scripts without the async pipeline.
 
 ## Architecture Highlights
 
@@ -38,9 +37,49 @@ Then:
 shards install
 ```
 
-## Quick Start with Enhanced DSL
+## Quick Start with the UI Builder
 
-### Chat Application (Easiest)
+```crystal
+require "terminal"
+
+app = Terminal.app(width: 80, height: 20) do |ui|
+  ui.layout do |layout|
+    layout.vertical do
+      layout.widget "header", Terminal::UI::Constraint.length(3)
+      layout.horizontal do
+        layout.widget "sidebar", Terminal::UI::Constraint.percent(30)
+        layout.widget "main"
+      end
+    end
+  end
+
+  ui.text_box "header" do |tb|
+    tb.set_text("System Monitor — press Ctrl+C to exit")
+  end
+
+  ui.text_box "sidebar" do |tb|
+    tb.set_text("Logs will appear here…")
+  end
+
+  ui.table "main" do |table|
+    table.col("Proc", :name, 20, :left, :cyan)
+    table.col("CPU%", :cpu, 6, :right, :white)
+    table.rows([
+      {"name" => "worker-1", "cpu" => "12"},
+      {"name" => "worker-2", "cpu" => "7"},
+    ])
+  end
+end
+
+spawn do
+  sleep 5.seconds
+  app.stop
+end
+
+app.start
+```
+
+### Chat Application Helper
 
 ```crystal
 require "terminal"
@@ -55,44 +94,6 @@ app = Terminal.chat_application("My Chat App") do |chat|
   end
 
   chat.on_key(:escape) { app.stop }
-end
-
-app.start
-```
-
-### Custom Layout Application
-
-```crystal
-require "terminal"
-
-app = Terminal.application(80, 24) do |builder|
-  # Define layout
-  builder.layout :four_quadrant do |layout|
-    if layout.is_a?(Terminal::ApplicationDSL::FourQuadrantLayout)
-      layout.top_left("main", 70, 80)
-      layout.top_right("status", 30, 80)
-      layout.bottom_full("input", 3)
-    end
-  end
-
-  # Create widgets
-  builder.text_widget("main") do |text|
-    text.content("Main content here")
-    text.title("📝 Main")
-  end
-
-  builder.text_widget("status") do |text|
-    text.content("Status: Ready")
-    text.title("📊 Status")
-  end
-
-  builder.input_widget("input") do |input|
-    input.prompt("Command: ")
-  end
-
-  # Handle events
-  builder.on_input("input") { |text| puts "Input: #{text}" }
-  builder.on_key(:escape) { app.stop }
 end
 
 app.start
@@ -124,7 +125,7 @@ end
 - **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** - Architecture overview
 - **[Windows Dev Box Setup](docs/windows_devbox_setup.md)** - Provision a cloud VM for Windows-specific testing
 
-## Legacy Quick Start (Low-Level API)
+## Low-Level API
 
 For advanced use cases, you can use the low-level API:
 

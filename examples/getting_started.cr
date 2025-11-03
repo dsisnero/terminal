@@ -16,25 +16,60 @@ def render_and_show(widget_name : String, grid : Array(Array(Terminal::Cell)))
   puts
 end
 
+# -----------------------------------------------------------------------------
+# 1. Build a tiny dashboard with the UI builder
+# -----------------------------------------------------------------------------
+
 puts "╔════════════════════════════════════════════╗"
 puts "║       Terminal Widgets - Getting Started   ║"
 puts "╚════════════════════════════════════════════╝"
 puts
 
-# 1. Simple Table
-puts "1. TableWidget - Display tabular data with automatic sizing:"
+puts "1. Terminal.app — Compose a simple dashboard"
+
+app = Terminal.app(width: 40, height: 10) do |builder|
+  builder.layout do |layout|
+    layout.vertical do
+      layout.widget "header", Terminal::UI::Constraint.length(3)
+      layout.horizontal do
+        layout.widget "left", Terminal::UI::Constraint.percent(50)
+        layout.widget "right"
+      end
+    end
+  end
+
+  builder.text_box "header" do |text_box|
+    text_box.set_text("Widgets in action")
+  end
+
+  builder.text_box "left" do |text_box|
+    text_box.set_text("Left pane")
+  end
+
+  builder.text_box "right" do |text_box|
+    text_box.set_text("Right pane")
+  end
+end
+
+grid = app.widget_manager.compose(40, 10)
+render_and_show("UI Builder", grid)
+
+puts "2. Individual widgets — render directly"
+
+# 2a. Simple Table
+puts "  • TableWidget"
 table = Terminal::TableWidget.new("users")
   .col("Name", :name, 10, :left, :white)
   .col("Age", :age, 3, :right, :white)
   .rows([
     {"name" => "Alice", "age" => "28"},
-    {"name" => "Bob", "age" => "35"}
+    {"name" => "Bob", "age" => "35"},
   ])
 
-render_and_show("Table", table.render(50, 10))
+render_and_show("Table", table.render(50, 6))
 
-# 2. Simple Input
-puts "2. InputWidget - Text input with prompt:"
+# 2b. Simple Input
+puts "  • InputWidget"
 input = Terminal::InputWidget.new("username", "Enter name:")
 input.handle(Terminal::Msg::InputEvent.new('J', Time::Span::ZERO))
 input.handle(Terminal::Msg::InputEvent.new('o', Time::Span::ZERO))
@@ -43,8 +78,8 @@ input.handle(Terminal::Msg::InputEvent.new('n', Time::Span::ZERO))
 
 render_and_show("Input", input.render(30, 5))
 
-# 3. Simple Dropdown
-puts "3. DropdownWidget - Selection from options:"
+# 2c. Simple Dropdown
+puts "  • DropdownWidget"
 dropdown = Terminal::DropdownWidget.new(
   "color",
   ["Red", "Green", "Blue"],
@@ -53,8 +88,8 @@ dropdown = Terminal::DropdownWidget.new(
 
 render_and_show("Dropdown", dropdown.render(30, 5))
 
-# 4. Simple Form
-puts "4. FormWidget - Multiple controls together:"
+# 2d. Simple Form
+puts "  • FormWidget"
 form = Terminal::FormWidget.new("contact", title: "Contact Info")
 form.add_control(Terminal::FormControl.new(
   id: "name",
