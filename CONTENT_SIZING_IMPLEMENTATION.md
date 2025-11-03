@@ -7,7 +7,7 @@ Successfully implemented comprehensive content-based sizing for all Terminal wid
 
 ### Core Methods Added
 - `calculate_min_width() : Int32` - Minimum width needed for content
-- `calculate_max_width() : Int32` - Maximum reasonable width 
+- `calculate_max_width() : Int32` - Maximum reasonable width
 - `calculate_optimal_width(available_width : Int32?) : Int32` - Best width within constraints
 - `calculate_min_height() : Int32` - Minimum height needed
 - `calculate_max_height() : Int32` - Maximum reasonable height
@@ -26,13 +26,13 @@ Successfully implemented comprehensive content-based sizing for all Terminal wid
 - **Height**: Headers + borders + data rows (min 4, max 25 rows)
 - **Example**: 3 columns (8+3+8) = 14 total width
 
-### FormWidget  
+### FormWidget
 - **Width**: Longest of title, controls, submit button (e.g., 31 chars instead of 100)
 - **Height**: Title + separator + controls + submit (scales with content)
 - **Example**: "Full Name" + input = 31 chars total width
 
 ### DropdownWidget
-- **Width**: Prompt + longest option + indicator (e.g., 33 chars instead of 100) 
+- **Width**: Prompt + longest option + indicator (e.g., 33 chars instead of 100)
 - **Height**: 1 when collapsed, 1 + visible options when expanded
 - **Example**: "Select:" + "Very Long Option Name" + "▼" = 33 chars
 
@@ -48,7 +48,7 @@ Successfully implemented comprehensive content-based sizing for all Terminal wid
 - Forms and tables looked awkwardly wide
 - Poor user experience on wide terminals
 
-### After  
+### After
 - Widgets size to their content needs
 - TableWidget: 14 chars (optimal for 3 small columns)
 - FormWidget: 31 chars (fits labels and reasonable input)

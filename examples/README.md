@@ -57,7 +57,7 @@ Validates keyboard navigation and accessibility features.
 
 ### Accessibility Features
 - High contrast white text on dark backgrounds
-- Colorblind-friendly design (no red/green dependencies)  
+- Colorblind-friendly design (no red/green dependencies)
 - Proper keyboard navigation (Tab, arrows, Enter, ESC)
 - Screen reader compatible labels and indicators
 - Terminal state restoration on exit
