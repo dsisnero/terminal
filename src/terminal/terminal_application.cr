@@ -29,6 +29,8 @@ module Terminal
 
     # Channels are owned/wired by EventLoop; do not create separate ones here
 
+    getter widget_manager
+
     def initialize(service_provider : ServiceProvider? = nil, @io : IO = STDOUT, input_provider : InputProvider? = nil, widget_manager : WidgetManager(T)? = nil, @width : Int32 = 80, @height : Int32 = 24)
       @service_provider = service_provider || ServiceProvider.new
       # prefer raw input provider by default if available
