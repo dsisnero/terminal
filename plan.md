@@ -51,15 +51,17 @@
 - ✅ Core messaging system (`messages.cr`)
 - ✅ Cell type implementation (`cell.cr`)
 - ✅ ScreenBuffer with diff computation
-- ✅ DiffRenderer with ANSI output + OSC52 + paste toggle
+- ✅ DiffRenderer with ANSI output, alternate screen handling, OSC52, bracketed paste
 - ✅ CursorManager for cursor operations
 - ✅ WidgetManager with focus + layout composition
 - ✅ EventLoop for fiber management + ticker
 - ✅ Dispatcher for message routing + tick handling
 - ✅ Input providers: Dummy, Raw (Unix), Windows VT stub
-- ✅ ColorDSL, InputWidget, TextBoxWidget, DropdownWidget, SpinnerWidget, TableWidget
+- ✅ ColorDSL, InputWidget, TextBoxWidget, DropdownWidget, SpinnerWidget, TableWidget, FormWidget
+- ✅ Shared editable-text helper for single-line inputs
 - ✅ UI builder and layout DSL (`Terminal.app`, constraints)
-- ✅ Full test suite (245 specs passing)
+- ✅ Runtime harness + signal forwarding (`Terminal.run`)
+- ✅ Full test suite (240 specs passing)
 
 **🔄 IN PROGRESS:**
 - 🔄 Windows input parsing improvements
@@ -67,6 +69,7 @@
 **⏳ PENDING:**
 - ⏳ Supervisor for fault tolerance
 - ⏳ CI/CD pipeline extensions
+- ⏳ Expanded widget catalog (list views, buttons, form controls)
 
 ---
 
@@ -85,6 +88,89 @@
 * **Testing:** Unit tests for logic; integration tests via `IO::Memory` and `DummyInputProvider`; end-to-end tests.
 
 ---
+
+# Core Components (Current)
+
+- **Messages (`messages.cr`)** – immutable union types describing every event flowing through the system (input, stop, render, clipboard, cursor, etc.).
+- **Cell (`cell.cr`)** – styled character representation (fg/bg/bold/underline) used by the rendering pipeline.
+- **ScreenBuffer (`screen_buffer.cr`)** – maintains the live 2D grid, computes minimal `ScreenDiff` updates.
+- **DiffRenderer (`diff_renderer.cr`)** – applies diffs to the target IO, manages alternate screen activation, bracketed paste, OSC 52 clipboard copy.
+- **CursorManager (`cursor_manager.cr`)** – moves/hides/shows the cursor and restores state on shutdown.
+- **Dispatcher (`dispatcher.cr`)** – routes input events and commands to the active widget, forwards render requests to the buffer.
+- **WidgetManager (`widget_manager.cr`)** – tracks widgets, focus order, and composes rendered cells given layout rectangles.
+- **Widgets** – `InputWidget`, `TextBoxWidget`, `DropdownWidget`, `SpinnerWidget`, `TableWidget`, `FormWidget`; all mix in `Widget` and many reuse the shared `EditableText` helper.
+- **Layout & Builder (`ui_layout.cr`, `ui_builder.cr`)** – declarative constraint-based layout tree plus the `Terminal.app` DSL.
+- **Runtime helpers** – `run.cr` (lifecycle wrapper, signal forwarding, initial render), `runtime_harness.cr` (test/deployment hooks), `stop_handler.cr` (signal wiring).
+- **Input providers** – dummy provider for tests plus platform-specific raw providers (Unix termios, Windows VT) surfaced via `InputProvider.default`.
+- **Prompts & DSL convenience** – high-level prompt helpers (`prompts.cr`) and DSL shortcuts (`dsl_convenience.cr`, `application_dsl.cr`).
+- **DI Container / Services** – `container.cr` and `service_provider.cr` wire actors and provide optional dependency injection.
+
+# File Structure Snapshot
+
+```
+src/terminal/
+  application_dsl.cr
+  basic_widget.cr
+  color_dsl.cr
+  container.cr
+  cursor_manager.cr
+  diff_renderer.cr
+  dsl_convenience.cr
+  editable_text.cr
+  event_loop.cr
+  form_widget.cr
+  input_provider.cr
+  input_widget.cr
+  interactive_streaming_ui.cr
+  messages.cr
+  prelude.cr
+  prompts.cr
+  run.cr
+  runtime_harness.cr
+  screen_buffer.cr
+  service_provider.cr
+  spinner_widget.cr
+  stop_handler.cr
+  table_widget.cr
+  terminal_application.cr
+  text_box_widget.cr
+  ui_builder.cr
+  ui_layout.cr
+  widget.cr
+  widget_manager.cr
+```
+
+Examples live under `examples/` (`interactive_builder_demo.cr`, `ui_builder_demo.cr`, etc.) and specs mirror the module layout (`spec/`).
+
+# Phase Completion Status (from `plan/fix_cohesiveness.md`)
+
+| Phase | Focus | Status |
+|-------|-------|--------|
+| 1 | Documentation & guardrails | ✅ Complete |
+| 2 | Core runtime cohesion (routing, shared helpers) | ✅ Complete |
+| 3 | Integration coverage (builder → renderer) | ✅ Complete |
+| 4 | Rendering cleanup & shared borders | ✅ Complete |
+| 5 | Tooling & CI (ameba + specs) | ✅ Complete |
+| 6 | Demo verification / harness docs | ✅ Complete |
+| 7 | Application test harness & widget audit | ✅ Complete |
+
+Remaining work now falls under the roadmap below.
+
+# Roadmap
+
+1. **Supervisor / resilience** – introduce actor supervision and restart policies so individual components can fail without dropping the whole app.
+2. **CI/CD extensions** – add benchmark harnesses and smoke tests on Windows runners; gate PRs on lint/spec results.
+3. **Windows raw-input polish** – improve paste handling, UTF-8 decoding, and modifier coverage in the VT provider.
+4. **Widget expansion** – build additional composable widgets (lists, buttons, forms) that leverage the new shared editable-text utilities and border helpers.
+5. **Stress / performance validation** – load-test large layouts, slow renderers, and long-running demos to document recommended tuning knobs.
+
+# Testing Strategy
+
+- **Unit tests** – messages, cells, screen buffer diffs, diff renderer (including alternate screen), cursor manager, editable text helper, prompts, service container.
+- **Widget specs** – input, text box, dropdown, spinner, table, form (cursor editing) plus shared border rendering.
+- **Integration tests** – widget manager focus routing, dispatcher/ScreenBuffer/DiffRenderer pipeline, runtime helper orchestration, interactive builder demo harness.
+- **Platform checks** – Windows key map spec, input provider smoke tests (dummy and raw).
+- **Manual / future** – planned benchmark and stress suites (see roadmap).
 
 # Messages
 
@@ -105,266 +191,3 @@ Canonical messages in `src/terminal/messages.cr`:
 > All messages should be immutable.
 
 ---
-
-# Core components (summary)
-
-1. **InputProvider:** sends `InputEvent`/`Stop` to `system_chan`. Implementations: `ConsoleInputProvider`, `DummyInputProvider`, `FileInputProvider`.
-2. **Dispatcher:** routes input to `WidgetManager`, broadcasts `Stop`, sends `ScreenUpdate` to `buffer_chan`.
-3. **WidgetManager:** manages widgets, per-widget channels, `compose` to produce `ScreenUpdate`.
-4. **Widget (base):** interface with `render`, `handle(msg)`, optional `start`.
-5. **ScreenBuffer:** receives `ScreenUpdate`, computes `ScreenDiff`, emits to `renderer_chan`.
-6. **DiffRenderer:** receives `ScreenDiff`, writes ANSI to injected `IO`, emits `RenderFrame`.
-7. **CursorManager:** handles cursor moves, hide/show, save/restore.
-8. **Container:** builds channels and components, injects dependencies, starts actors.
-9. **Terminal facade:** high-level entry point.
-10. **Supervisor:** optional actor supervision for failures.
-
-# Plan Part 2 — File Structure, Phases 0-2
-
-# File Structure
-
-```
-src/
-  terminal/
-    messages.cr
-    cell.cr
-    raw_terminal.cr
-    input_provider.cr
-    dummy_input_provider.cr
-    dispatcher.cr
-    widget_manager.cr
-    widgets/
-      base.cr
-      text_box.cr
-      status_bar.cr
-      list_view.cr
-      button.cr
-    screen_buffer.cr
-    diff_renderer.cr
-    cursor_manager.cr
-    widget_renderer.cr
-    container.cr
-    terminal.cr
-spec/
-  messages_spec.cr
-  cell_spec.cr
-  screen_buffer_spec.cr
-  diff_renderer_spec.cr
-  cursor_manager_spec.cr
-  widget_integration_spec.cr
-  terminal_integration_spec.cr
-README.md
-plan.1.md
-plan.2.md
-plan.3.md
-```
-
----
-
-# Phase 0 — Project setup & conventions
-
-**Tasks:**
-
-* Initialize project (`shard.yml`), create directories.
-* Add `spec` to `shard.yml`.
-* Set coding conventions (immutable messages, snake_case filenames, DI in Container).
-
-**Acceptance:**
-
-* `crystal spec` runs.
-* Optional lint/formatter configured.
-
----
-
-# Phase 1 — Core messaging, IO injection, lightweight pipeline
-
-**Tasks:**
-
-[✅] Implement `messages.cr`.
-[✅] Implement `cell.cr` (Cell type).
-[✅] Implement `ScreenBuffer` (string mode) with `start(in, out)` and unit tests.
-[✅] Implement `DiffRenderer` with injected `IO` and tests using `IO::Memory`.
-[✅] Implement `CursorManager` with injected IO and tests.
-[✅] Implement `EventLoop` for fiber management.
-[✅] Implement `Dispatcher` for message routing.
-[ ] Implement `DummyInputProvider`.
-[ ] Implement `Container` to wire channels and start components.
-[ ] Write `terminal.cr` demo using `DummyInputProvider`.
-
-**Acceptance:**
-
-* Unit tests pass. ✅ (All 9 tests passing)
-* Integration: demo writes expected ANSI sequences to `IO::Memory`.
-
-**Tests:**
-
-* ScreenBuffer: initial N lines yields N `ScreenDiff` entries. ✅
-* DiffRenderer: applied diffs produce correct ANSI output. ✅
-* CursorManager: emits correct ANSI sequences. ✅
-* Widget event routing: input events routed to focused widget. ✅
-
----
-
-# Phase 2 — Interactive input, Dispatcher, WidgetManager
-
-**Tasks:**
-
-[ ] Implement `InputProvider` console version (raw mode, `termios`).
-[✅] Implement `Dispatcher` routing `InputEvent` -> `WidgetManager`, handling `Command`s.
-[✅] Implement `WidgetManager` and widgets: `TextBox`, `StatusBar`, `ListView`.
-[✅] Implement `WidgetManager.compose` -> `ScreenUpdate`.
-[✅] Add tests for `WidgetManager` and `Dispatcher`.
-[ ] Extend `Container` to wire `Dispatcher` and `WidgetManager`.
-[ ] Provide interactive demo: `terminal.cr` with Tab focus switching, 'q' to quit.
-
-**Acceptance:**
-
-* Integration: input updates `ScreenBuffer` via Dispatcher.
-* End-to-end: demo interactive with Tab focus, 'q' stops gracefully.
-
-**Tests:**
-
-* `widget_event_routing_spec`: assert `ScreenDiff` after sending input.
-* `terminal_integration_spec`: simulate input sequence via `DummyInputProvider`, assert final `Stop`.
-
-# Plan Part 3 — Phases 3-5
-
-## Phase 3 — CursorManager, RawTerminal, graceful shutdown
-
-**Tasks:**
-
-[✅] Implement `CursorManager` with injected IO and tests.
-[ ] Replace `stty` with `termios` FFI wrapper (`RawTerminal`).
-[ ] Ensure fiber loops catch exceptions, send `Msg::Stop`.
-[ ] Add `Supervisor` for actor failures.
-[ ] Add unit tests for `RawTerminal` toggling.
-
-**Acceptance:**
-
-* CursorManager emits correct ANSI sequences.
-* RawTerminal toggling works via FFI.
-* Ctrl-C or Stop restores terminal settings.
-
-**Tests:**
-
-* CursorManager_spec: verify hide/show/move sequences.
-* Supervisor: simulate failing actor, confirm Stop propagation.
-
----
-
-## Phase 4 — Styled Cells & ScreenBuffer upgrade
-
-**Tasks:**
-
-[ ] Upgrade `Cell` with fg/bg/bold/underline and `to_ansi`.
-[ ] Update `ScreenUpdate` to use `Array(Array(Cell))`.
-[ ] ScreenBuffer tracks 2D grid, computes `ScreenDiff`.
-[ ] DiffRenderer renders `Cell` sequences with style grouping.
-[ ] Tests verifying style diffs and compact ANSI emissions.
-
-**Acceptance:**
-
-* ScreenBuffer-style tests pass.
-* DiffRenderer emits minimal ANSI resets.
-* Integration tests with IO::Memory validate output.
-
-**Tests:**
-
-* `screen_buffer_styled_spec`: diff counts and content.
-* `diff_renderer_styled_spec`: style grouping test.
-
----
-
-## Phase 5 — Widget composition & async event routing
-
-**Tasks:**
-
-[✅] Implement `Widget` base and widget set.
-[✅] WidgetManager per-widget channels, optional `start` fiber for widgets.
-[✅] Dispatcher routes input to focused widget, sends `ScreenUpdate`.
-[ ] Optional WidgetRenderer to transform widget tree to ScreenUpdate.
-[ ] Tests for widget routing, composition, focus, and commands.
-[ ] Extend Container to start all components.
-
-**Acceptance:**
-
-* Integration spec runs deterministically using `IO::Memory`.
-* Focus commands change targeted widget.
-* Widgets can run background tasks publishing updates via channels.
-
-**Tests:**
-
-* `widget_integration_spec`: route input, verify composed output.
-* `widget_focus_spec`: focus_next/prev changes receiving widget.
-
-# Plan Part 4 — Phases 6-7, Testing, CI, Extras
-
-## Phase 6 — Robustness, CI, benchmarks
-
-**Tasks:**
-
-[ ] Add continuous integration (GitHub Actions) running `crystal spec`.
-[ ] Add benchmarks for throughput and latency.
-[ ] Stress tests: many widgets, large buffers, slow renderer.
-[ ] Optional supervisor policies for restarts.
-[ ] Document performance tuning knobs.
-
-**Acceptance:**
-
-* CI runs green.
-* Benchmarks reported.
-* Backpressure demonstrated.
-
-**Tests:**
-
-* `bench` folder with benchmark harness.
-
----
-
-## Phase 7 — Extras (polish, extensions)
-
-**Tasks:**
-
-[ ] Add optional advanced widgets (Tables, Graphs, ProgressBars).
-[ ] Add mouse/scroll support if terminal supports.
-[ ] Provide color scheme support.
-[ ] Add documentation for library usage, DI, and customization.
-[ ] Add more integration tests simulating real TUIs.
-
-**Acceptance:**
-
-* Library can be used to build a non-trivial TUI.
-* All previously implemented phases remain passing.
-* Documentation is complete with examples.
-
-**Tests:**
-
-* Integration tests for optional widgets.
-* End-to-end demos using terminal, IO::Memory, and DummyInputProvider.
-
----
-
-# Testing Strategy (summary)
-
-[✅] **Unit tests:**
-
-   * Messages, Cell operations, ScreenBuffer diff, DiffRenderer ANSI generation, CursorManager commands.
-[ ] **Integration tests:**
-
-   * DummyInputProvider → Dispatcher → WidgetManager → ScreenBuffer → DiffRenderer.
-   * Focus switching, commands, stop propagation.
-[ ] **End-to-end tests:**
-
-   * Interactive flow with terminal input, simulate sequences via DummyInputProvider.
-[ ] **Stress and performance tests:**
-
-   * Large number of widgets, rapid updates, slow IO, validate latency and correctness.
-
-# Notes for implementation
-
-* All communication async via Channels, no shared mutable state.
-* All actors (components) run in separate fibers using `spawn`.
-* Use dependency injection via Container to pass channels and IO.
-* Strict immutable messages and Cell structs for safety.
-* Each component mapped to a clear SOLID responsibility.
-* Tests leverage `IO::Memory` and `DummyInputProvider` for deterministic validation.
