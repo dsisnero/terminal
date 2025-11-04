@@ -1,6 +1,8 @@
 # File: src/terminal/input_widget.cr
 # Purpose: Input widget with styled prompt and input area
 
+require "./editable_text"
+
 module Terminal
   class InputWidget
     include Terminal::Widget
@@ -54,8 +56,15 @@ module Terminal
         when Terminal::Msg::KeyPress
           handle_key(msg.key)
         when Terminal::Msg::InputEvent
-          if msg.char.printable? || msg.char == ' '
-            insert_char(msg.char)
+          case msg.char
+          when '\u{7f}', '\b'
+            handle_key("backspace")
+          when '\r', '\n'
+            handle_enter_key
+          else
+            if msg.char.printable? || msg.char == ' '
+              insert_char(msg.char)
+            end
           end
         end
       end
@@ -67,40 +76,46 @@ module Terminal
     end
 
     def handle_left_key
-      @cursor_pos = [@cursor_pos - 1, 0].max
+      @cursor_pos = Terminal::EditableText.move_cursor(@value, @cursor_pos, -1)
     end
 
     def handle_right_key
-      @cursor_pos = [@cursor_pos + 1, @value.size].min
+      @cursor_pos = Terminal::EditableText.move_cursor(@value, @cursor_pos, 1)
     end
 
     private def handle_key(key : String)
       case key
       when "backspace"
-        if @cursor_pos > 0
-          @value = @value[0...(@cursor_pos - 1)] + @value[@cursor_pos..]
-          @cursor_pos -= 1
+        new_value, new_cursor = Terminal::EditableText.delete_before(@value, @cursor_pos)
+        if new_value != @value
+          @value = new_value
+          @cursor_pos = new_cursor
           @on_change.try(&.call(@value))
         end
       when "delete"
-        if @cursor_pos < @value.size
-          @value = @value[0...@cursor_pos] + @value[(@cursor_pos + 1)..]
+        new_value, new_cursor = Terminal::EditableText.delete_at(@value, @cursor_pos)
+        if new_value != @value
+          @value = new_value
+          @cursor_pos = new_cursor
           @on_change.try(&.call(@value))
         end
       when "home"
         @cursor_pos = 0
       when "end"
         @cursor_pos = @value.size
+      when "left"
+        handle_left_key
+      when "right"
+        handle_right_key
       end
     end
 
     private def insert_char(ch : Char)
-      if max_len = @max_length
-        return if @value.size >= max_len
-      end
+      new_value, new_cursor = Terminal::EditableText.insert(@value, @cursor_pos, ch, @max_length)
+      return if new_value == @value
 
-      @value = @value[0...@cursor_pos] + ch.to_s + @value[@cursor_pos..]
-      @cursor_pos += 1
+      @value = new_value
+      @cursor_pos = new_cursor
       @on_change.try(&.call(@value))
     end
 
@@ -147,6 +162,7 @@ module Terminal
       end
 
       # Render input value
+      @cursor_pos = Terminal::EditableText.clamp_cursor(@cursor_pos, @value)
       input_start = x
       @value.chars.each_with_index do |ch, i|
         break if x >= actual_width

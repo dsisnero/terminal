@@ -10,10 +10,11 @@ module Terminal
     stop_message : Proc(Terminal::Msg::Any) = -> { Terminal::Msg::Stop.new("terminal.run") },
     io : IO = STDOUT,
     input_provider : Terminal::InputProvider? = nil,
+    harness : Terminal::RuntimeHarness::Controller? = nil,
     configure : Proc(Terminal::TerminalApplication(Terminal::Widget), Nil)? = nil,
     &block : UI::Builder -> Nil
   ) : Terminal::TerminalApplication(Terminal::Widget)
-    application = app(width: width, height: height, io: io, input_provider: input_provider) do |builder|
+    application = app(width: width, height: height, io: io, input_provider: input_provider, harness: harness) do |builder|
       block.call(builder)
     end
 
@@ -31,6 +32,7 @@ module Terminal
     end
 
     application.start
+    application.dispatch(Terminal::Msg::RenderRequest.new("initial", ""))
     cleanup.try &.call
     application
   end

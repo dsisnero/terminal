@@ -15,7 +15,7 @@ describe "Terminal Integration" do
 
     # Set up components
     screen = ScreenBuffer.new(diff_chan)
-    renderer = DiffRenderer.new(io)
+    renderer = DiffRenderer.new(io, use_alternate_screen: false)
     cursor = CursorManager.new(io)
 
     screen.start(diff_chan)

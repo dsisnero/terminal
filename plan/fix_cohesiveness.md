@@ -47,9 +47,21 @@ The rendering pipeline has grown organically across several eras of the project 
 - [x] Extract shared helper(s) for bordered widgets to reduce duplication between TextBox/Form/Table.
 - [x] Capture rendering guidelines (padding, background fill, ellipsis behaviour) in docs for new widget authors.
 
-### Phase 5 — Tooling & CI (TODO)
-- [ ] Extend CI to run `crystal spec` + `ameba` on push (with Windows smoke tests queued).
-- [ ] Provide a sample builder demo (`examples/ui_builder_demo.cr`) once the pipeline is cohesive and tested.
+### Phase 5 — Tooling & CI (DONE)
+- [x] Extend CI to run `crystal spec` + `ameba` on push (with Windows smoke tests queued).
+- [x] Provide a sample builder demo (`examples/ui_builder_demo.cr`) once the pipeline is cohesive and tested.
+
+### Phase 6 — Demo Verification (DONE)
+- [x] Expose reusable hooks for interactive demos so specs can orchestrate shutdown and capture logs.
+- [x] Add runtime-helper backed specs that exercise `examples/interactive_builder_demo.cr` end-to-end (input dispatch, `/quit` handling, and logging).
+
+### Phase 7 — Application Test Harness (DONE)
+- [x] Generalise runtime hook support so any `Terminal.app` or `Terminal.run` caller can opt into a structured test harness (configurable stop triggers, log capture, synthetic inputs).
+- [x] Extend builder/runtime APIs with a first-class harness attachment so specs can opt in without demo-specific glue code.
+- [x] Document the harness usage pattern in AGENTS.md and update example specs to showcase the generic approach.
+- [x] Audit all input-style widgets to ensure backspace/arrow key handling is consistent and note any gaps.
+  - Findings: `InputWidget` and Form text controls now share the `EditableText` helper (cursor, backspace/delete, home/end). Dropdown filtering already handled printable input/backspace and needs no changes. No other widgets currently accept free-form text.
+  - Follow-up: none pending after the shared helper refactor.
 
 ## Testing Strategy
 

@@ -1,1 +1,4 @@
 crystal_docs/
+/bin/
+/lib/
+/temp/

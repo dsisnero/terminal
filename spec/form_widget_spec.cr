@@ -153,6 +153,43 @@ describe Terminal::FormWidget do
         form.controls[0].value.should eq("John")
       end
 
+      it "supports cursor navigation and editing in text control" do
+        control = Terminal::FormControl.new(
+          id: "name",
+          type: Terminal::FormControlType::TextInput,
+          label: "Name"
+        )
+        form = Terminal::FormWidget.new(id: "form1", controls: [control])
+
+        %w[H i].each do |ch|
+          form.handle(Terminal::Msg::InputEvent.new(ch[0], Time::Span::ZERO))
+        end
+
+        form.controls[0].value.should eq("Hi")
+        form.controls[0].cursor_pos.should eq(2)
+
+        form.handle(Terminal::Msg::KeyPress.new("left"))
+        form.controls[0].cursor_pos.should eq(1)
+
+        form.handle(Terminal::Msg::InputEvent.new('!', Time::Span::ZERO))
+        form.controls[0].value.should eq("H!i")
+        form.controls[0].cursor_pos.should eq(2)
+
+        form.handle(Terminal::Msg::KeyPress.new("backspace"))
+        form.controls[0].value.should eq("Hi")
+        form.controls[0].cursor_pos.should eq(1)
+
+        form.handle(Terminal::Msg::KeyPress.new("delete"))
+        form.controls[0].value.should eq("H")
+        form.controls[0].cursor_pos.should eq(1)
+
+        form.handle(Terminal::Msg::KeyPress.new("home"))
+        form.controls[0].cursor_pos.should eq(0)
+
+        form.handle(Terminal::Msg::KeyPress.new("end"))
+        form.controls[0].cursor_pos.should eq(1)
+      end
+
       it "deletes text with backspace" do
         control = Terminal::FormControl.new(
           id: "name",

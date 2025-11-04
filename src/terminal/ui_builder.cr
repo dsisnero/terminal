@@ -9,11 +9,19 @@ require "./table_widget"
 require "./input_widget"
 require "./spinner_widget"
 require "./terminal_application"
+require "./runtime_harness"
 
 module Terminal
   # Convenience entrypoint
-  def self.app(width : Int32 = 80, height : Int32 = 24, io : IO = STDOUT, input_provider : Terminal::InputProvider? = nil, &block : UI::Builder -> Nil) : TerminalApplication(Widget)
-    builder = UI::Builder.new(width, height)
+  def self.app(
+    width : Int32 = 80,
+    height : Int32 = 24,
+    io : IO = STDOUT,
+    input_provider : Terminal::InputProvider? = nil,
+    harness : Terminal::RuntimeHarness::Controller? = nil,
+    &block : UI::Builder -> Nil
+  ) : TerminalApplication(Widget)
+    builder = UI::Builder.new(width, height, harness)
     block.call(builder)
     builder.build(io: io, input_provider: input_provider)
   end
@@ -45,8 +53,9 @@ module Terminal
     class Builder
       getter width : Int32
       getter height : Int32
+      getter harness : Terminal::RuntimeHarness::Controller?
 
-      def initialize(@width : Int32, @height : Int32)
+      def initialize(@width : Int32, @height : Int32, harness : Terminal::RuntimeHarness::Controller? = nil)
         @widgets = {} of String => Terminal::Widget
         @layout_root = LayoutNode.new(Constraint.flex, Direction::Vertical)
         @input_handlers = {} of String => Proc(String, Nil)
@@ -54,6 +63,8 @@ module Terminal
         @tickers = [] of Tuple(Time::Span, Proc(Nil))
         @on_start = nil
         @on_stop = nil
+        @harness = harness
+        @pending_stop_reason = nil.as(Symbol?)
       end
 
       def layout(&block : LayoutBuilder -> Nil)
@@ -66,6 +77,14 @@ module Terminal
           raise ArgumentError.new("Widget id '#{key}' already registered")
         end
         @widgets[key] = widget
+      end
+
+      def widget?(id : String | Symbol) : Terminal::Widget?
+        @widgets[normalize_id(id)]?
+      end
+
+      def widget!(id : String | Symbol) : Terminal::Widget
+        widget?(id) || raise ArgumentError.new("Unknown widget '#{normalize_id(id)}'")
       end
 
       def text_box(id : String | Symbol, &block : TextBoxWidget -> Nil)
@@ -116,6 +135,22 @@ module Terminal
         @on_stop = block
       end
 
+      def attach_harness(harness : Terminal::RuntimeHarness::Controller)
+        @harness = harness
+      end
+
+      def request_stop(reason : Symbol = :external)
+        if harness = @harness
+          harness.stop(reason)
+        elsif @pending_stop_reason.nil?
+          @pending_stop_reason = reason
+        end
+      end
+
+      def record(message : String)
+        @harness.try &.record(message)
+      end
+
       def build(io : IO = STDOUT, input_provider : Terminal::InputProvider? = nil) : TerminalApplication(Terminal::Widget)
         ensure_layout_covers_widgets
 
@@ -131,6 +166,14 @@ module Terminal
           width: @width,
           height: @height
         )
+
+        if harness = @harness
+          harness.bind(app)
+        elsif reason = @pending_stop_reason
+          spawn do
+            app.dispatch(Terminal::Msg::Stop.new("builder:#{reason}"))
+          end
+        end
 
         schedule_start_and_ticks
 

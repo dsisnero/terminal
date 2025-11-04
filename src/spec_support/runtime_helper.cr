@@ -23,6 +23,7 @@ module Terminal
         stop_after : Time::Span? = 5.milliseconds,
         input_provider : Terminal::InputProvider? = Terminal::DummyInputProvider.new,
         compose_after_stop : Bool = false,
+        harness : Terminal::RuntimeHarness::Controller? = nil,
         &block : UI::Builder -> Nil
       ) : Result
         output = IO::Memory.new
@@ -30,12 +31,27 @@ module Terminal
           if stop_after
             spawn do
               sleep stop_after
-              application.dispatch(Terminal::Msg::Stop.new("spec-runtime"))
+              if harness
+                harness.stop(:timeout)
+              else
+                application.dispatch(Terminal::Msg::Stop.new("spec-runtime"))
+              end
             end
           end
         }
 
-        app = Terminal.run(width: width, height: height, signals: signals, exit_key: exit_key, stop_message: -> { Terminal::Msg::Stop.new("spec-runtime") }, io: output, input_provider: input_provider, configure: configure, &block)
+        app = Terminal.run(
+          width: width,
+          height: height,
+          signals: signals,
+          exit_key: exit_key,
+          stop_message: -> { Terminal::Msg::Stop.new("spec-runtime") },
+          io: output,
+          input_provider: input_provider,
+          harness: harness,
+          configure: configure,
+          &block
+        )
 
         if compose_after_stop
           app.widget_manager.compose(width, height)

@@ -10,6 +10,12 @@ crystal run examples/getting_started.cr
 ```
 Shows simple usage of each widget type with automatic content-based sizing.
 
+### UI Builder Demo
+```bash
+crystal run examples/ui_builder_demo.cr
+```
+Renders a dashboard-style layout using `Terminal.app`, showcasing vertical and horizontal splits, table widgets, and text boxes without starting the interactive runtime.
+
 ### Comprehensive Demo
 ```bash
 crystal run examples/comprehensive_demo.cr
@@ -24,7 +30,7 @@ crystal run examples/interactive_builder_demo.cr
 ```
 - **Navigation**: Type messages, press Enter. Use `/quit` or press `Esc` to exit.
 - **Features**: Built entirely with `Terminal.run`, shows live logging, global key handler, and input submission callbacks.
-- **Notes**: Runs the real event loop; no manual `stty` shenanigans required.
+- **Notes**: Runs the real event loop; no manual `stty` shenanigans required. Set `TERM_DEMO_TEST=1` to auto-exit for scripted checks, or `TERM_DEMO_SKIP_MAIN=1` when requiring the file in specs.
 
 ## Static Examples
 

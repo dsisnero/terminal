@@ -9,7 +9,7 @@ require "../src/terminal/cell"
 describe DiffRenderer do
   it "renders ScreenDiff changes to IO" do
     io = IO::Memory.new
-    renderer = DiffRenderer.new(io)
+    renderer = DiffRenderer.new(io, use_alternate_screen: false)
     diff_chan = Channel(Terminal::Msg::Any).new
 
     renderer.start(diff_chan)

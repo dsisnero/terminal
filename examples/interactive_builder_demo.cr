@@ -1,81 +1,206 @@
 #!/usr/bin/env crystal
 
 # Interactive Builder Demo
-# Shows how to compose a small chat-style interface with Terminal.run.
-# Features:
-# - Layout built with Terminal.app + UI builder
-# - TextBoxWidget log updated on each submitted message
-# - InputWidget submission with Enter, `/quit`, or Esc to exit gracefully
+# Demonstrates an interactive chat-style interface backed by Terminal.run.
+# The demo uses the runtime harness so automated tests can drive it with
+# synthetic input while the CLI remains fully interactive.
 
-require "atomic"
-require "signal"
 require "../src/terminal"
 
-log_box = nil.as(Terminal::TextBoxWidget?)
-stop_requests = Channel(Symbol).new(1)
-stop_sent = Atomic(Bool).new(false)
+module Examples
+  module InteractiveBuilderDemo
+    class Stats
+      property messages : Int32
+      property commands : Int32
+      property last_command : String
+      property started_at : Time
+      property pinned_message : String?
 
-request_stop = ->(reason : Symbol) do
-  stop_sent.compare_and_set(false, true) && stop_requests.send(reason)
-end
+      def initialize
+        @messages = 0
+        @commands = 0
+        @last_command = "None"
+        @started_at = Time.utc
+        @pinned_message = nil
+      end
 
-signal_cleanup = nil.as(Proc(Nil))
-
-_app = Terminal.run(width: 80, height: 22, signals: [] of Signal, exit_key: nil, stop_message: -> { Terminal::Msg::Stop.new("interactive_builder_demo") }, configure: ->(application : Terminal::TerminalApplication(Terminal::Widget)) {
-  previous = Signal.trap(Signal::INT) { request_stop.call(:signal) }
-  signal_cleanup = -> { Signal.trap(Signal::INT, previous) }
-
-  spawn do
-    reason = stop_requests.receive
-    log_box.try do |box|
-      case reason
-      when :escape
-        box.add_line("System: Escape pressed, stopping...")
-      when :quit
-        box.add_line("System: /quit received, stopping...")
-      when :signal
-        box.add_line("System: Ctrl+C received, stopping...")
+      def uptime : Time::Span
+        Time.utc - @started_at
       end
     end
-    application.dispatch(Terminal::Msg::Stop.new("interactive_builder_demo"))
-  end
-}) do |builder|
-  builder.layout do |layout|
-    layout.vertical do
-      layout.widget "header", Terminal::UI::Constraint.length(3)
-      layout.widget "log", Terminal::UI::Constraint.flex
-      layout.widget "input", Terminal::UI::Constraint.length(3)
-    end
-  end
 
-  builder.text_box "header" do |box|
-    box.set_text("Interactive Builder Demo — type and press Enter (Esc or /quit to exit)")
-  end
+    HELP_LINES = [
+      "Available commands:",
+      "  /help   - show this help",
+      "  /clear  - clear the chat log",
+      "  /stats  - print current statistics",
+      "  /pin <msg> - pin a message in the status panel",
+      "  /unpin  - clear pinned message",
+      "  /quit   - exit the demo",
+      "Keyboard shortcuts: F1=Help, Esc=Exit",
+    ]
 
-  builder.text_box "log" do |box|
-    box.set_text("Welcome!\nType messages and press Enter. Use '/quit' or press Esc to exit.\n")
-    box.auto_scroll = true
-    log_box = box
-  end
-
-  builder.input "input" do |input|
-    input.prompt("You: ")
-    input.on_submit do |value|
-      next if value.empty?
-
-      if value == "/quit"
-        request_stop.call(:quit)
+    private def self.format_duration(span : Time::Span) : String
+      total_seconds = span.total_seconds.to_i
+      minutes, seconds = total_seconds.divmod(60)
+      hours, minutes = minutes.divmod(60)
+      if hours > 0
+        sprintf("%02d:%02d:%02d", hours, minutes, seconds)
       else
-        log_box.try(&.add_line("You: #{value}"))
-        log_box.try(&.add_line("System: echo -> #{value.upcase}"))
+        sprintf("%02d:%02d", minutes, seconds)
       end
-      input.clear
+    end
+
+    def self.build(builder : Terminal::UI::Builder)
+      harness = builder.harness
+      log_box = nil.as(Terminal::TextBoxWidget?)
+      status_box = nil.as(Terminal::TextBoxWidget?)
+      stats = Stats.new
+
+      record = ->(tag : String, message : String) { harness.try &.record("#{tag}: #{message}") }
+
+      update_status = -> do
+        lines = [] of String
+        lines << "Messages: #{stats.messages}"
+        lines << "Commands: #{stats.commands}"
+        lines << "Last command: #{stats.last_command}"
+        lines << "Pinned: #{stats.pinned_message || "None"}"
+        lines << "Uptime: #{format_duration(stats.uptime)}"
+        lines << "Shortcuts: F1 Help | Esc Exit"
+        status_box.try(&.set_text(lines.join("\n")))
+      end
+
+      log_user = ->(message : String) do
+        record.call("User", message)
+        log_box.try(&.add_line("You: #{message}"))
+        stats.messages += 1
+        update_status.call
+      end
+
+      log_system = ->(message : String) do
+        record.call("System", message)
+        log_box.try(&.add_line("System: #{message}"))
+      end
+
+      builder.layout do |layout|
+        layout.vertical do
+          layout.widget "header", Terminal::UI::Constraint.length(3)
+          layout.widget "status", Terminal::UI::Constraint.length(6)
+          layout.widget "log", Terminal::UI::Constraint.flex
+          layout.widget "input", Terminal::UI::Constraint.length(3)
+        end
+      end
+
+      builder.text_box "header" do |box|
+        box.set_text("Interactive Builder Demo — type and press Enter (Esc or /quit to exit)")
+        box.can_focus = false
+      end
+
+      builder.text_box "log" do |box|
+        log_box = box
+        initial_lines = [
+          "Welcome!",
+          "Type messages and press Enter. Use '/quit' or press Esc to exit.",
+        ]
+        box.set_text(initial_lines.join("\n"))
+        box.auto_scroll = true
+        box.can_focus = false
+        initial_lines.each { |line| record.call("System", line) }
+      end
+
+      builder.text_box "status" do |box|
+        status_box = box
+        box.auto_scroll = false
+        box.can_focus = false
+      end
+
+      builder.input "input" do |input|
+        input.prompt("You: ")
+        input.on_submit do |value|
+          next if value.empty?
+
+          trimmed = value.rstrip
+
+          if trimmed.starts_with?("/")
+            stats.commands += 1
+            stats.last_command = trimmed
+            record.call("User", trimmed)
+            log_box.try(&.add_line("You: #{trimmed}"))
+
+            case trimmed
+            when "/help"
+              HELP_LINES.each { |line| log_system.call(line) }
+            when "/clear"
+              log_box.try(&.clear)
+              log_system.call("Log cleared.")
+            when "/stats"
+              log_system.call("Messages sent: #{stats.messages}, commands used: #{stats.commands}")
+            when /^\/pin\s+(.+)/
+              pinned = $1.strip
+              stats.pinned_message = pinned
+              log_system.call("Pinned message updated.")
+            when "/unpin"
+              stats.pinned_message = nil
+              log_system.call("Pinned message cleared.")
+            when "/quit"
+              log_system.call("/quit received, stopping...")
+              builder.request_stop(:quit)
+            else
+              log_system.call("Unknown command '#{trimmed}'. Type /help for options.")
+            end
+            update_status.call
+          else
+            log_user.call(trimmed)
+            log_system.call("Echo -> #{trimmed.upcase}")
+          end
+
+          input.clear
+        end
+      end
+
+      builder.on_key(:escape) do
+        log_system.call("Escape pressed, stopping...")
+        builder.request_stop(:escape)
+      end
+
+      builder.on_key(:f1) do
+        HELP_LINES.each { |line| log_system.call(line) }
+      end
+
+      builder.on_stop do
+        log_system.call("Application stopped.")
+      end
+
+      update_status.call
     end
   end
-
-  builder.on_key(:escape) { request_stop.call(:escape) }
 end
 
-signal_cleanup.try &.call
+unless ENV["TERM_DEMO_SKIP_MAIN"]?
+  test_mode = ENV["TERM_DEMO_TEST"]? == "1"
 
-puts "\nDemo finished. Thanks for trying the interactive builder demo!"
+  harness = Terminal::RuntimeHarness::Controller.new(
+    auto_dispatch: test_mode,
+    stop_message: ->(reason : Symbol) { Terminal::Msg::Stop.new("interactive_builder_demo:#{reason}") }
+  )
+
+  unless test_mode
+    puts "Press Enter to start the interactive builder demo..."
+    STDIN.gets
+  end
+
+  app = Terminal.run(
+    width: 80,
+    height: 22,
+    exit_key: nil,
+    stop_message: -> { Terminal::Msg::Stop.new("interactive_builder_demo") },
+    harness: harness
+  ) do |builder|
+    builder.attach_harness(harness)
+    Examples::InteractiveBuilderDemo.build(builder)
+  end
+
+  reason = harness.wait_for_stop
+  app.stop
+  puts "\nDemo finished (reason: #{reason}). Thanks for trying the interactive builder demo!"
+end

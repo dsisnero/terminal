@@ -1,6 +1,8 @@
 # File: src/terminal/form_widget.cr
 # Purpose: Form widget supporting multiple control types with validation
 
+require "./editable_text"
+
 module Terminal
   enum FormControlType
     TextInput
@@ -30,6 +32,7 @@ module Terminal
     property type : FormControlType
     property label : String
     property value : String
+    property cursor_pos : Int32
     property options : Array(String)
     property required : Bool
     property validator : Proc(String, Bool)?
@@ -45,6 +48,7 @@ module Terminal
       @validator : Proc(String, Bool)? = nil,
     )
       @error = nil
+      @cursor_pos = @value.size
     end
 
     def valid? : Bool
@@ -96,6 +100,7 @@ module Terminal
     end
 
     def add_control(control : FormControl)
+      control.cursor_pos = control.value.size if control.type.text_input?
       @controls << control
     end
 
@@ -174,6 +179,18 @@ module Terminal
       @expanded_dropdown = nil
     end
 
+    def handle_left_key
+      if control = current_text_control
+        move_cursor(control, -1)
+      end
+    end
+
+    def handle_right_key
+      if control = current_text_control
+        move_cursor(control, 1)
+      end
+    end
+
     private def handle_key(key : String)
       case key
       when "space"
@@ -186,25 +203,58 @@ module Terminal
             control.value = "true"
           end
         end
+      when "left"
+        if control = current_text_control
+          move_cursor(control, -1)
+        end
+      when "right"
+        if control = current_text_control
+          move_cursor(control, 1)
+        end
+      when "home"
+        if control = current_text_control
+          set_cursor(control, 0)
+        end
+      when "end"
+        if control = current_text_control
+          set_cursor(control, control.value.size)
+        end
       when "backspace"
-        if control = current_control
-          if control.type.text_input? && !control.value.empty?
-            control.value = control.value[0...-1]
-          end
+        if control = current_text_control
+          delete_before_cursor(control)
+        end
+      when "delete"
+        if control = current_text_control
+          delete_at_cursor(control)
         end
       end
     end
 
     private def handle_input(ch : Char)
-      if control = current_control
-        if control.type.text_input? && (ch.printable? || ch == ' ')
-          control.value += ch.to_s
+      if control = current_text_control
+        case ch
+        when '\u{7f}', '\b'
+          delete_before_cursor(control)
+        when '\r', '\n'
+          handle_enter_key
+        else
+          if ch.printable? || ch == ' '
+            insert_char(control, ch)
+          end
         end
       end
     end
 
     private def current_control : FormControl?
       @controls[@focused_index]? if @focused_index < @controls.size
+    end
+
+    private def current_text_control : FormControl?
+      control = current_control
+      return nil unless control
+      return nil unless control.type.text_input?
+      normalize_cursor(control)
+      control
     end
 
     private def submit_form
@@ -380,7 +430,7 @@ module Terminal
       # Value line(s)
       case control.type
       when .text_input?
-        value_line = render_text_input(control.value, focused, width)
+        value_line = render_text_input(control, focused, width)
         lines << value_line
       when .dropdown?
         dropdown_line = render_dropdown_line(control.value, focused, expanded, width)
@@ -404,16 +454,25 @@ module Terminal
       lines
     end
 
-    private def render_text_input(value : String, focused : Bool, width : Int32) : Array(Terminal::Cell)
+    private def render_text_input(control : FormControl, focused : Bool, width : Int32) : Array(Terminal::Cell)
+      control.cursor_pos = Terminal::EditableText.clamp_cursor(control.cursor_pos, control.value)
       bg = focused ? "cyan" : "default"
       line = Array.new(width) { Terminal::Cell.new(' ', bg: bg) }
 
       prefix = "  > "
-      text = prefix + value + (focused ? "_" : "")
+      text = prefix + control.value
 
       text.chars.each_with_index do |ch, i|
         break if i >= width
         line[i] = Terminal::Cell.new(ch, fg: "white", bg: bg)
+      end
+
+      cursor_index = prefix.size + control.cursor_pos
+      if focused && cursor_index < width
+        cell = line[cursor_index]
+        line[cursor_index] = Terminal::Cell.new(cell.char, cell.fg, cell.bg, cell.bold, true)
+      elsif focused && cursor_index == width
+        line[width - 1] = Terminal::Cell.new(line[width - 1].char, "white", bg, line[width - 1].bold, true)
       end
       line
     end
@@ -495,6 +554,36 @@ module Terminal
         line[pos] = Terminal::Cell.new(ch, fg: "white", bg: bg, bold: true)
       end
       line
+    end
+
+    private def insert_char(control : FormControl, ch : Char)
+      new_value, new_cursor = Terminal::EditableText.insert(control.value, control.cursor_pos, ch)
+      control.value = new_value
+      control.cursor_pos = new_cursor
+    end
+
+    private def delete_before_cursor(control : FormControl)
+      new_value, new_cursor = Terminal::EditableText.delete_before(control.value, control.cursor_pos)
+      control.value = new_value
+      control.cursor_pos = new_cursor
+    end
+
+    private def delete_at_cursor(control : FormControl)
+      new_value, new_cursor = Terminal::EditableText.delete_at(control.value, control.cursor_pos)
+      control.value = new_value
+      control.cursor_pos = new_cursor
+    end
+
+    private def move_cursor(control : FormControl, delta : Int32)
+      control.cursor_pos = Terminal::EditableText.move_cursor(control.value, control.cursor_pos, delta)
+    end
+
+    private def set_cursor(control : FormControl, pos : Int32)
+      control.cursor_pos = Terminal::EditableText.set_cursor(control.value, pos)
+    end
+
+    private def normalize_cursor(control : FormControl)
+      control.cursor_pos = Terminal::EditableText.clamp_cursor(control.cursor_pos, control.value)
     end
   end
 end

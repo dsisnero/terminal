@@ -38,7 +38,8 @@ module Terminal
       @widget_manager = widget_manager || WidgetManager(T).new([] of T)
 
       # compose subsystems; channels will be provided by EventLoop on start
-      @diff_renderer = DiffRenderer.new(@io)
+      use_alt_screen = @io.responds_to?(:tty?) ? @io.tty? : false
+      @diff_renderer = DiffRenderer.new(@io, use_alternate_screen: use_alt_screen)
       @cursor_manager = CursorManager.new(@io)
       @screen_buffer = ScreenBuffer.new
       @dispatcher = Dispatcher(T).new(@widget_manager, @width, @height)

@@ -15,7 +15,7 @@ module Terminal
     getter io : IO
     getter cursor_chan : Channel(Terminal::Msg::Any)? # optional, may be nil
 
-    def initialize(@io : IO, @cursor_chan : Channel(Terminal::Msg::Any)? = nil, @enable_bracketed_paste : Bool = false)
+    def initialize(@io : IO, @cursor_chan : Channel(Terminal::Msg::Any)? = nil, @enable_bracketed_paste : Bool = false, @use_alternate_screen : Bool = true)
     end
 
     def start(diff_chan : Channel(Terminal::Msg::Any))
@@ -24,6 +24,7 @@ module Terminal
           if @enable_bracketed_paste
             enable_bracketed_paste
           end
+          enter_alternate_screen if @use_alternate_screen
           loop do
             msg = diff_chan.receive
             case msg
@@ -74,7 +75,18 @@ module Terminal
       if @enable_bracketed_paste
         disable_bracketed_paste
       end
+      exit_alternate_screen if @use_alternate_screen
       @io.print "\e[0m\e[?25h" # reset attributes and show cursor
+      @io.flush
+    end
+
+    private def enter_alternate_screen
+      @io.print "\e[?1049h\e[H"
+      @io.flush
+    end
+
+    private def exit_alternate_screen
+      @io.print "\e[?1049l"
       @io.flush
     end
 

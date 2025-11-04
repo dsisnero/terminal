@@ -29,22 +29,21 @@
 - Input, TextBox, Dropdown, Spinner, and Table widget specs
 - ServiceContainer specs
 - Prompt helper coverage and Windows key map specs
-- **All 245 specs passing successfully**
+- **All 240 specs passing successfully**
 
 **🔧 Recent Fixes:**
 - Replaced deprecated sleep calls with Time::Span
 - Fixed EventLoop wiring, ScreenBuffer API, WaitGroup behavior
-- Added bracketed paste parsing and OSC 52 clipboard support
+- Added bracketed paste parsing, OSC 52 clipboard support, and alternate-screen handling (restores prior shell UI on exit)
 - WidgetManager focus cycle, global key handler registration, and key dispatch wiring in Dispatcher
-- InputWidget width handling + background fill, TextBoxWidget scroll/state fixes, Dropdown filter reset
-- Resolved TableWidget header truncation and ColorDSL constant visibility
-- Added channel-based lifecycle wiring (`Terminal.run`, signal forwarding, escape defaults)
+- Shared editable-text helper across InputWidget/FormWidget for consistent cursor/backspace/delete/home/end behaviour
+- Interactive builder demo rebuilt with status panel, command shortcuts, and harness-driven specs
+- Added channel-based lifecycle wiring (`Terminal.run`, signal forwarding, escape defaults) and runtime harness for deterministic shutdown
 
 **📋 Next Priority Tasks:**
-- [x] Author end-to-end builder spec covering Terminal.app → Dispatcher → ScreenBuffer pipeline
-- [x] Document cohesive rendering plan (`plan/fix_cohesiveness.md`, `RENDERING_GUIDELINES.md`) and align README/usage guides
 - [ ] Supervisor for actor failures and restart policies
 - [ ] CI/CD extensions (benchmarks, lint gate, Windows smoke tests beyond specs)
+- [ ] Expand widget catalog (forms, lists) leveraging shared editable-text helper
 
 ## Implementation Status Summary
 
@@ -63,12 +62,11 @@
 - ✅ Full test suite (245 specs passing)
 
 **🔄 IN PROGRESS:**
-- 🔄 Demo application (example binary) — optional
+- 🔄 Windows input parsing improvements
 
 **⏳ PENDING:**
-- ⏳ Windows input parsing
 - ⏳ Supervisor for fault tolerance
-- ⏳ CI/CD pipeline
+- ⏳ CI/CD pipeline extensions
 
 ---
 

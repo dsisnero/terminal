@@ -12,6 +12,7 @@
   - Compose layouts with `ui.layout { |layout| layout.vertical { ... } }` and `Terminal::UI::Constraint` helpers (`percent`, `length`, `flex`).
   - Mount widgets via `ui.text_box`, `ui.table`, `ui.input`, `ui.spinner`, or `ui.mount` for custom widgets.
   - Register behavior with `ui.on_input("widget_id") { |value| ... }`, `ui.on_key(:escape) { app.stop }`, and `ui.every(250.milliseconds) { ... }` for tickers.
+  - When tests need deterministic shutdown or log capture, pass a `Terminal::RuntimeHarness::Controller` to `Terminal.app` / `Terminal.run` (or call `builder.attach_harness`). Specs can also set `TERM_DEMO_SKIP_MAIN=1` when requiring demos to prevent them from auto-starting.
 - Widgets should rely on `include Terminal::Widget` helpers for wrapping, borders, and focus. New widgets must expose `id`, `handle`, and `render`, and honour `can_focus` when focus is not applicable.
 - Use the shared styling utilities (`Terminal::ColorDSL`, `Terminal::TextMeasurement`) to keep rendering consistent.
 
