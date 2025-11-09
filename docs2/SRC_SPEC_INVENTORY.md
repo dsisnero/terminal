@@ -11,7 +11,6 @@
 |-------------|---------|---------------|-----------------|
 | `application_dsl.cr` | Legacy DSL helpers that wrap `Terminal.app` | `spec/application_dsl_spec.cr` ✅ | Still referenced by older demos; keep but document deprecation once builder docs land. |
 | `basic_widget.cr` | Minimal widget implementation used in low-level examples | `spec/widget_render_spec.cr` ✅ | Covered indirectly via helper specs. |
-| `block.cr` | Legacy concurrent block runner (unused in builder/component pipelines) | None ⚠️ | Verify callers; currently appears unused → mark for removal or document rationale. |
 | `cell.cr` | Represents styled terminal cells | `spec/cell_spec.cr` ✅ | Good coverage. |
 | `color_dsl.cr` | Inline color helpers for widgets | `spec/widget_helpers_spec.cr` ✅ | N/A. |
 | `container.cr` | Legacy DI container | `spec/container_spec.cr` ⚠️ (failing) | Spec currently broken; audit should decide whether to retire in favor of `container_new.cr`. |
@@ -26,11 +25,11 @@
 | `form_widget.cr` | Multi-field form widget | `spec/form_widget_spec.cr` ✅ | None. |
 | `geometry.cr` | Layout geometry helpers | `spec/geometry_spec.cr` ✅ | None. |
 | `input_provider.cr` | Abstract input provider + dummy/raw wiring | `spec/dummy_input_provider_spec.cr`, `spec/windows_key_map_spec.cr` ✅ | None. |
-| `input_raw_unix.cr` | Unix raw input provider | Integration only ⚠️ | Hard to unit test; document manual coverage. |
+| `input_raw_unix.cr` | Unix raw input provider | `spec/input_raw_unix_spec.cr` (parser) ⚠️ | Parser has unit coverage; end-to-end raw-mode still relies on manual smoke tests. |
 | `input_raw_windows.cr` | Windows VT input provider | `spec/windows_key_map_spec.cr` (partial) ⚠️ | Rely on Windows CI smoke tests (TODO). |
 | `input_widget.cr` | Single-line input widget | `spec/input_widget_spec.cr` ✅ | None. |
 | `interactive_streaming_ui.cr` | Legacy streaming demo wiring | `spec/interactive_streaming_ui_spec.cr` ✅ | Confirm still needed after audit. |
-| `messages.cr` | Message definitions | `spec/widget_event_routing_spec.cr` (indirect) ⚠️ | Consider direct message spec or doc topic instead. |
+| `messages.cr` | Message definitions | `spec/messages_spec.cr` ✅ | Lightweight unit spec verifies struct construction/payload handling; still exercised indirectly via integration specs. |
 | `prelude.cr` | Convenience require aggregator | Covered implicitly ✅ | No standalone spec required. |
 | `prompts.cr` | CLI prompt helpers | `spec/prompts_spec.cr` ✅ | None. |
 | `run.cr` | `Terminal.run` lifecycle helper | `spec/run_spec.cr` ✅ | None. |
@@ -38,14 +37,15 @@
 | `screen_buffer.cr` | Maintains active screen grid | `spec/screen_buffer_spec.cr` ✅ | New harness logs exist. |
 | `service_provider.cr` | DI service provider wiring | `spec/dependency_test_classes*_spec.cr` ✅ | None. |
 | `spinner_widget.cr` | Spinner widget | `spec/spinner_widget_spec.cr` ✅ | None. |
-| `stop_handler.cr` | Signal handling glue | Covered via `spec/run_spec.cr` ⚠️ | Document behavior. |
+| `stop_handler.cr` | Signal handling glue | `spec/stop_handler_spec.cr` ✅ | Direct spec ensures signals forward once and cleanup restores traps. |
 | `table_widget.cr` | Table widget | `spec/table_widget_spec.cr` ✅ | None. |
 | `terminal_application.cr` | Core app orchestrator | `spec/terminal_application_spec.cr` ✅ | None. |
 | `text_box_widget.cr` | Multi-line text widget | `spec/text_box_widget_spec.cr` ✅ | None. |
-| `tty.cr` | TTY helper utilities | Implicit via prompts/input ⚠️ | Add doc describing responsibilities; consider spec. |
+| `tty.cr` | TTY helper utilities | `spec/tty_spec.cr` (non-TTY path) ⚠️ | Spec ensures graceful behavior for non-TTY IO; raw-mode behavior documented in `docs2/INPUT_PROVIDERS.md`. |
 | `ui_builder.cr` | Builder DSL implementation | `spec/ui_builder_spec.cr`, `spec/ui_builder_integration_spec.cr` ✅ | Document interplay with runtime harness. |
 | `ui_layout.cr` | Constraint-based layout engine | `spec/ui_builder_spec.cr`, `spec/geometry_spec.cr` ✅ | None. |
-| `timed_wait_group.cr` | WaitGroup wrapper adding timeout support | ⚠️ | Thin layer over stdlib `WaitGroup`; currently exercised indirectly via `EventLoop` integration specs. |
+| `component_program.cr` | Optional Elm/Bubble-Tea style wrapper | `spec/component_program_spec.cr` ✅ | Powers `examples/component_chat_demo.cr`. |
+| `timed_wait_group.cr` | WaitGroup wrapper adding timeout support | `spec/timed_wait_group_spec.cr` ✅ | Direct unit specs ensure timeout/complete behaviour; still exercised by `EventLoop`. |
 | `widget.cr` | Widget base module | `spec/widget_helpers_spec.cr` ✅ | None. |
 | `widget_manager.cr` | Focus + render orchestration | `spec/widget_manager_spec.cr`, `spec/widget_render_spec.cr` ✅ | None. |
 | `windows_key_map.cr` | Windows key translation | `spec/windows_key_map_spec.cr` ✅ | None. |
@@ -55,8 +55,6 @@
 - `spec/dependency_test_classes_spec.cr` / `_fixed` – Fixture specs purely for DI container validation; keep as long as both containers exist.
 
 ### Source Files Without Specs
-- `block.cr`
-- `timed_wait_group.cr`
-- Platform-specific raw input files (documented manually)
+- Platform-specific raw input files (documented manually; Windows VT input still requires smoke tests)
 
-📝 Action: confirm usage of the above and either add specs or remove files.
+📝 Action: rely on recorded smoke runs + future CI automation for platform-specific input providers.

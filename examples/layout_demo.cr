@@ -3,7 +3,6 @@
 
 require "../src/terminal/frame"
 require "../src/terminal/layout"
-require "../src/terminal/block"
 require "../src/terminal/table_widget"
 require "../src/terminal/form_widget"
 
@@ -50,10 +49,6 @@ content_layout = Terminal::Layout.new(
     Terminal::Constraint::Percentage.new(40), # Form area
   ]
 )
-
-# Create blocks for styling
-table_block = Terminal::Block.new("Data Table", Terminal::BorderType::Rounded, "\e[34m")
-form_block = Terminal::Block.new("User Form", Terminal::BorderType::Double, "\e[32m")
 
 frame.clear_screen
 

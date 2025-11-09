@@ -1,5 +1,6 @@
-# Block component for bordered panels with titles
-# Inspired by Ratatui's Block component
+# Block component for bordered panels with titles.
+# NOTE: only used by the legacy layout demos under `examples/`.
+# When those demos are migrated, move this helper alongside them (or drop it).
 
 require "./layout"
 

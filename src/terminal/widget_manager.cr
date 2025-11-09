@@ -71,6 +71,15 @@ module Terminal
       focus_current
     end
 
+    def focus_widget(widget_id : String | Symbol)
+      return if @focus_keys.empty?
+      key = widget_id.is_a?(Symbol) ? widget_id.to_s : widget_id
+      if idx = @focus_keys.index(key)
+        @focused_index = idx
+        focus_current
+      end
+    end
+
     def route_to_focused(msg : Terminal::Msg::Any)
       case msg
       when Terminal::Msg::KeyPress

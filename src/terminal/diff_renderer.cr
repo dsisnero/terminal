@@ -55,13 +55,15 @@ module Terminal
         case cells
         when Array(Terminal::Cell)
           cells.each(&.to_ansi(@io))
+          clear_to_eol
         when String
           @io.print cells
+          clear_to_eol
         else
           @io.print cells.to_s
+          clear_to_eol
         end
         @io.print "\e[0m" # reset style at end of line
-        @io.print "\r\n"
       end
       @io.flush
     end
@@ -105,6 +107,10 @@ module Terminal
       b64 = Base64.strict_encode(text)
       @io.print "\e]52;c;#{b64}\a"
       @io.flush
+    end
+
+    private def clear_to_eol
+      @io.print "\e[K"
     end
   end
 end

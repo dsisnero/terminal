@@ -19,7 +19,6 @@ An async terminal UI toolkit for Crystal with a clean actor-based architecture (
 - Complete widget ecosystem with fluent builders
 - Actor-based coordination (EventLoop → ScreenBuffer → DiffRenderer)
 
-Status: **Production Ready** - 27 specs passing, comprehensive DSL documentation.
 
 ## Install
 
@@ -72,25 +71,71 @@ Terminal.run(width: 80, height: 20) do |ui|
 end
 ```
 
-### Chat Application Helper
+## Component Model (Preview)
+
+Prefer to keep state + render logic together? The component layer wraps the builder so you can write Elm/Bubble-Tea style programs:
 
 ```crystal
-require "terminal"
-
-app = Terminal.chat_application("My Chat App") do |chat|
-  chat.chat_area { |area| area.content("Welcome!") }
-  chat.input_area { |input| input.prompt("You: ") }
-
-  chat.on_user_input do |message|
-    # Handle user input
-    puts "User said: #{message}"
+class HelloComponent < Terminal::Components::Component(String)
+  def initial_model : String
+    "Hello"
   end
 
-  chat.on_key(:escape) { app.stop }
+  def layout(layout : Terminal::Components::LayoutDSL) : Nil
+    layout.compose do
+      layout.text_box :log, layout.flex, auto_scroll: true do |box|
+        box.can_focus = false
+      end
+      layout.input :input, layout.length(1), prompt: "> "
+    end
+  end
+
+  def render(model : String, view : Terminal::Components::ViewContext) : Nil
+    view.text_box(:log).set_text(model)
+  end
+
+  def update(event, model : String) : String
+    case event
+    when Terminal::Components::Events::InputSubmitted
+      "#{model}\nYou: #{event.value}"
+    else
+      model
+    end
+  end
 end
 
-app.start
+Terminal::Components.run(HelloComponent.new, width: 60, height: 12)
 ```
+
+See `examples/component_chat_demo.cr` for a fuller sample with harness logging, keyboard shortcuts, and scripted playback via `TERM_DEMO_TEST=1`.
+
+## Running Examples with the Harness
+
+Every example can be executed through the harness-aware runner so terminal state stays tidy:
+
+```bash
+bin/run_example interactive_builder_demo
+bin/run_example -l interactive_builder_demo   # stream harness logs
+# or, if you prefer raw crystal:
+crystal run scripts/run_example.cr -- -l interactive_builder_demo
+```
+
+When a demo supports scripted playback (for example, `component_chat_demo` once reintroduced), set `TERM_DEMO_TEST=1` so the harness drives input automatically. Pair it with `TERMINAL_USE_HARNESS=1` to avoid raw-terminal cleanup.
+
+Need archived ANSI output for regression tests? Capture it via:
+
+```bash
+scripts/capture_example.rb interactive_builder_demo -o log/interactive_builder_demo.typescript
+```
+
+Then load the transcript in specs using `Terminal::SpecSupport::TypescriptReplay` or inspect it quickly via:
+
+```bash
+crystal run scripts/replay_typescript.cr -- -f log/interactive_builder_demo.typescript
+```
+
+Need a local raw-input smoke test on macOS/Linux? Run `scripts/smoke_raw_input.rb` (drives the demo via PTY, sends bracketed paste). Need to verify Windows raw input? Follow `docs2/WINDOWS_SMOKE_TESTS.md` (dev box instructions + capture workflow).
+
 
 ## CLI Prompts & TTY Utilities
 
@@ -110,6 +155,8 @@ Terminal::TTY.with_raw_mode do
   # Your console logic here (raw mode, no echo)
 end
 ```
+> Need the full architecture map and audit status? See `docs2/README.md` for runtime flow, source/spec inventory, demo status, and input-provider guidance (will replace the legacy docs below once finalized).
+
 
 ## Documentation
 
@@ -118,6 +165,7 @@ end
 - **[Terminal Architecture](TERMINAL_ARCHITECTURE.md)** – Actor pipeline and rendering overview
 - **[Windows Dev Box Setup](docs/windows_devbox_setup.md)** – Provision a cloud VM for Windows-specific testing
 - **[Rendering Guidelines](RENDERING_GUIDELINES.md)** – Widget sizing, borders, and lifecycle conventions
+- **[Audit Docs (WIP)](docs2/README.md)** – Up-to-date runtime notes, source/spec inventory, demo status, and input-provider guidance (will replace legacy docs once finalized).
 
 ## Low-Level API
 
@@ -224,7 +272,8 @@ spec/
 git clone https://github.com/dsisnero/terminal.git
 cd terminal
 shards install
-crystal spec
+CRYSTAL_CACHE_DIR="$PWD/temp/crystal_cache" crystal spec
+./bin/ameba
 crystal tool format
 ```
 

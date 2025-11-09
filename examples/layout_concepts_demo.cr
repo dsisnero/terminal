@@ -3,7 +3,7 @@
 
 require "../src/terminal/frame"
 require "../src/terminal/layout"
-require "../src/terminal/block"
+require "./support/block"
 
 puts "Layout Concepts Demo"
 puts "This shows how screen space can be divided into regions"

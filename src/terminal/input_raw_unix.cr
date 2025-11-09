@@ -15,16 +15,58 @@ require "./tty"
 module Terminal
   {% unless flag?(:win32) %}
     class RawInputProvider < InputProvider
+      class Parser
+        def initialize(@out_chan : Channel(Msg::Any))
+          @paste_mode = false
+          @paste_buf = String.new
+        end
+
+        def consume(data : String)
+          i = 0
+          while i < data.bytesize
+            if !@paste_mode && data.byte_at?(i) == 0x1B
+              if data.size >= i + 6 && data[i, 6] == "\e[200~"
+                @paste_mode = true
+                i += 6
+                next
+              end
+            end
+
+            if @paste_mode
+              if data.size >= i + 6 && data[i, 6] == "\e[201~"
+                flush_paste
+                i += 6
+                next
+              else
+                @paste_buf += data.byte_at(i).unsafe_chr
+                i += 1
+              end
+            else
+              ch = data.byte_at(i).unsafe_chr
+              @out_chan.send(Msg::InputEvent.new(ch, Time::Span.zero))
+              i += 1
+            end
+          end
+        end
+
+        private def flush_paste
+          @out_chan.send(Msg::PasteEvent.new(@paste_buf))
+          @paste_buf = String.new
+          @paste_mode = false
+        end
+      end
+
       DEFAULT_POLL_INTERVAL = 2.milliseconds
 
-      def initialize(interval_ms : Int32 = 0)
+      def initialize(interval_ms : Int32 = 0, io : IO::FileDescriptor = STDIN)
         @poll_interval = interval_ms > 0 ? interval_ms.milliseconds : DEFAULT_POLL_INTERVAL
+        @io = io
       end
 
       def start(out_chan : Channel(Msg::Any))
         spawn do
           begin
-            Terminal::TTY.with_raw_mode(STDIN, non_blocking: true) do
+            Terminal::TTY.with_raw_mode(@io, non_blocking: true) do
               read_loop(out_chan)
             end
           rescue ex : Exception
@@ -41,41 +83,13 @@ module Terminal
       # added later (arrows, function keys, UTF-8 multi-byte handling, etc.).
       private def read_loop(out_chan : Channel(Msg::Any))
         buf = Bytes.new(1024)
-        paste_mode = false
-        paste_buf = String.new
+        parser = Parser.new(out_chan)
         loop do
           ::sleep(@poll_interval)
-          n = STDIN.read(buf)
+          n = @io.read(buf)
           if n > 0
             data = String.new(buf[0, n])
-            i = 0
-            while i < data.bytesize
-              if !paste_mode && data.byte_at?(i) == 0x1B # ESC
-                # look ahead for bracketed paste start "[200~"
-                if data.size >= i + 6 && data[i, 6] == "\e[200~"
-                  paste_mode = true
-                  i += 6
-                  next
-                end
-              end
-              if paste_mode
-                if data.size >= i + 6 && data[i, 6] == "\e[201~"
-                  # end paste
-                  out_chan.send(Msg::PasteEvent.new(paste_buf))
-                  paste_buf = String.new
-                  paste_mode = false
-                  i += 6
-                  next
-                else
-                  paste_buf += data.byte_at(i).unsafe_chr
-                  i += 1
-                end
-              else
-                ch = data.byte_at(i).unsafe_chr
-                out_chan.send(Msg::InputEvent.new(ch, Time::Span.zero))
-                i += 1
-              end
-            end
+            parser.consume(data)
           end
         end
       end

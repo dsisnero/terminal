@@ -26,5 +26,5 @@
 
 ## Testing & Reference Material
 - Specs live under `spec/`; prefer focused specs per widget (`spec/input_widget_spec.cr`, `spec/text_box_widget_spec.cr`, etc.). Add regression coverage when fixing bugs.
-- Helpful references: `README.md` (quick start + builder overview), `plan.md` (roadmap), `LAYOUT_SYSTEM_SUMMARY.md` (layout engine), `TERMINAL_ARCHITECTURE.md` (actor pipeline).
+- Helpful references: `README.md` (quick start + builder overview), `plan.md` (roadmap), `docs2/README.md` (in-progress audit docs: runtime flow, source/spec inventory, demo status, input providers), `LAYOUT_SYSTEM_SUMMARY.md` (layout engine), `TERMINAL_ARCHITECTURE.md` (actor pipeline).
 - Keep documentation in sync with behaviour changes, especially when updating the builder API or widget contracts.

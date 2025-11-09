@@ -6,15 +6,15 @@ require "../src/terminal/messages"
 require "../src/terminal/diff_renderer"
 require "../src/terminal/cell"
 
-describe DiffRenderer do
+describe Terminal::DiffRenderer do
   it "renders ScreenDiff changes to IO" do
     io = IO::Memory.new
-    renderer = DiffRenderer.new(io, use_alternate_screen: false)
+    renderer = Terminal::DiffRenderer.new(io, use_alternate_screen: false)
     diff_chan = Channel(Terminal::Msg::Any).new
 
     renderer.start(diff_chan)
 
-    cells = [Cell.new('H'), Cell.new('i')]
+    cells = [Terminal::Cell.new('H'), Terminal::Cell.new('i')]
     diff = Terminal::Msg::ScreenDiff.new([{0, cells.as(Terminal::Msg::Payload)}])
 
     spawn do
