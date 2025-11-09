@@ -16,7 +16,7 @@ require "../terminal/screen_buffer"
 require "../terminal/diff_renderer"
 require "../terminal/widget_manager"
 require "../terminal/cursor_manager"
-require "../terminal/wait_group"
+require "../terminal/timed_wait_group"
 
 module Terminal
   class EventLoop(T)
@@ -40,8 +40,7 @@ module Terminal
     @cursor_chan : Channel(Msg::Any) = Channel(Msg::Any).new
     @stop : Channel(Bool) = Channel(Bool).new(1)
     @done : Channel(Bool) = Channel(Bool).new(1)
-    # Local WaitGroup implementation (see src/terminal/wait_group.cr)
-    @wait_group = WaitGroup.new
+    @wait_group = TimedWaitGroup.new
     @verbose = false
     @event_fiber : Fiber? = nil
     @ticker_interval : Time::Span? = nil

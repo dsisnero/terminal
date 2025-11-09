@@ -403,7 +403,7 @@ module Terminal
     # Register basic types that the container can handle natively
     private def register_basic_types
       # These types can be created without dependency resolution
-      # TODO: Factory registration temporarily disabled due to type safety issues
+      # NOTE: Factory registration temporarily disabled due to type safety issues
       # register_factory(String) { |container| "default-string-#{Random.new.hex(4)}" }
       # register_factory(Int32) { |container| Random.rand(1000) }
       # register_factory(Float64) { |container| Random.rand * 1000.0 }

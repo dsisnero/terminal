@@ -73,6 +73,18 @@
 
 ---
 
+## Audit Workstream (2025-11)
+
+**Objective:** Run an end-to-end inventory of runtime code, specs, demos, and documentation to ensure the current architecture is fully understood and documented. Fresh notes live under `docs2/` so legacy docs remain untouched until we replace them.
+
+- [x] **Source inventory** – catalog every file under `src/terminal/`, note ownership, dependencies, and whether it is still used. Document findings in `docs2/SRC_SPEC_INVENTORY.md`.
+- [x] **Spec coverage map** – build a `src ↔ spec` table showing which specs cover each module, and log gaps/redundancies.
+- [x] **Docs refresh** – identify stale Markdown, draft up-to-date replacements in `docs2/` (architecture, runtime flow, component/builder APIs, harness guidance).
+- [x] **Demo status** – list every executable (examples, scripts, bin tools), mark which are interactive vs. scripted, and ensure each has a deterministic harness story (`TERM_DEMO_TEST`, `TypescriptReplay`, etc.).
+- [x] **Action backlog** – convert audit findings into actionable TODOs (remove dead files, add specs, refresh demos/CI) and feed them back into this roadmap (see `docs2/ACTION_ITEMS.md`).
+
+---
+
 # High-level design summary
 
 * **Architecture:** Actor-like components communicating via immutable messages over `Channel(Msg::Any)`. Each component runs in its own `Fiber`.
